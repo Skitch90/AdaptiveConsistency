@@ -13,8 +13,8 @@ import it.alesc.adaptiveconsistency.logic.CategoryLines;
  */
 public class UnknownVariableException extends Exception {
 	private static final long serialVersionUID = -2328166948384826461L;
-	private String name;
-	private CategoryLines category;
+	private final String name;
+	private final CategoryLines category;
 
 	/**
 	 * The default constructor of the class. It requires the specification of

@@ -72,7 +72,7 @@ public class Variable {
 			return true;
 		}
 
-		if (obj == null || !(obj instanceof Variable)) {
+		if (!(obj instanceof Variable)) {
 			return false;
 		}
 

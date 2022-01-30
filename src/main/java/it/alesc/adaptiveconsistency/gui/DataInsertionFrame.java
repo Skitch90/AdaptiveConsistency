@@ -35,6 +35,7 @@ import org.javatuples.Triplet;
  */
 public class DataInsertionFrame extends JFrame {
 	private static final long serialVersionUID = 1216585958133368789L;
+	public static final String SOURCE_FILE_ERROR_MESSAGE = "Errore nel file sorgente";
 	private JPanel mainPanel = new JPanel();
 	private JLabel sourceFileLabel = new JLabel("File sorgente");
 	private JTextField sourceFileText = new JTextField();
@@ -72,15 +73,12 @@ public class DataInsertionFrame extends JFrame {
 		sourceFileText.setColumns(25);
 		sourcePanel.add(sourceFileText);
 
-		sourceFileButton.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				int choose = sourceFileChooser.showOpenDialog(null);
+		sourceFileButton.addActionListener(e -> {
+			int choose = sourceFileChooser.showOpenDialog(null);
 
-				if (choose == JFileChooser.APPROVE_OPTION) {
-					File file = sourceFileChooser.getSelectedFile();
-					sourceFileText.setText(file.getAbsolutePath());
-				}
+			if (choose == JFileChooser.APPROVE_OPTION) {
+				File file = sourceFileChooser.getSelectedFile();
+				sourceFileText.setText(file.getAbsolutePath());
 			}
 		});
 		sourcePanel.add(sourceFileButton);
@@ -119,31 +117,31 @@ public class DataInsertionFrame extends JFrame {
 				JOptionPane.showMessageDialog(null,
 						"Il nome " + duplicVarExc.getName()
 								+ "è usato come nome in più di una variable",
-						"Errore nel file sorgente", JOptionPane.ERROR_MESSAGE);
+						SOURCE_FILE_ERROR_MESSAGE, JOptionPane.ERROR_MESSAGE);
 			} catch (UnknownVariableException unknownVarExc) {
 				String message = "";
 				switch (unknownVarExc.getCategory()) {
-				case Constraints:
-					message = "Nei vincoli ";
-					break;
-				case OrderLine:
-					message = "Nell'ordinamento ";
-					break;
-				default:
-					break;
+					case CONSTRAINTS:
+						message = "Nei vincoli ";
+						break;
+					case ORDER_LINE:
+						message = "Nell'ordinamento ";
+						break;
+					default:
+						break;
 				}
 				message += " è presente il nome "
 						+ unknownVarExc.getName()
 						+ " che non corrisponde ad alcuna variabile dichiarata precedentemente";
 
 				JOptionPane.showMessageDialog(null, message,
-						"Errore nel file sorgente", JOptionPane.ERROR_MESSAGE);
+						SOURCE_FILE_ERROR_MESSAGE, JOptionPane.ERROR_MESSAGE);
 			} catch (WrongVariablesNumberException wrongVarNumberExc) {
 				JOptionPane
 						.showMessageDialog(
 								null,
 								"Il numero delle variabili nell'ordinamento è diverso dal numero della variabili dichiarate",
-								"Errore nel file sorgente",
+								SOURCE_FILE_ERROR_MESSAGE,
 								JOptionPane.ERROR_MESSAGE);
 			}
 		}

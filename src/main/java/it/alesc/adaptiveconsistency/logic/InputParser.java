@@ -1,21 +1,17 @@
 package it.alesc.adaptiveconsistency.logic;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.ParseException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.Vector;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import it.alesc.adaptiveconsistency.logic.csp.Constraint;
 import it.alesc.adaptiveconsistency.logic.csp.Variable;
@@ -33,6 +29,7 @@ import org.javatuples.Triplet;
  * @version 6.0 05 Jan 2014
  */
 public class InputParser {
+	private static final int REQUIRED_NUMBER_GROUPS = 3;
 	/**
 	 * The path of the file to process.
 	 */
@@ -79,7 +76,7 @@ public class InputParser {
 	public Triplet<Set<Variable>, Set<Constraint>, List<String>> parseFile()
 			throws ParseException, IOException, DuplicateVariableNameException,
 			UnknownVariableException, WrongVariablesNumberException {
-		Triplet<Vector<String>, Vector<String>, String> triplet = groupLines();
+		Triplet<List<String>, List<String>, String> triplet = groupLines();
 
 		Set<Variable> variables = createVariablesSet(triplet.getValue0());
 		checkVariableNames(variables);
@@ -104,54 +101,27 @@ public class InputParser {
 	 * 
 	 * @throws IOException if an error occurs during file reading
 	 */
-	private Triplet<Vector<String>, Vector<String>, String> groupLines()
-			throws IOException {
-		Vector<String> varLines = new Vector<String>();
-		Vector<String> constrLines = new Vector<String>();
-		String ordLine = null;
-
-		BufferedReader reader = new BufferedReader(new FileReader(
-				new File(path)));
-
-		// For-loop to group the lines of the file
-		String line = reader.readLine();
-		boolean endFirst = false, endSecond = false, finish = false;
-		while (line != null && !finish) {
-			if (line.equals("")) {
-				// A section of file file ends, so next lines must be grouped in
-				// another group
-				if (endFirst == false) {
-					endFirst = true;
-				} else {
-					if (endSecond == false) {
-						endSecond = true;
-					}
-				}
-			} else {
-				if (endSecond == true) {
-					// the second section is finished, so the line must be the
-					// order line
-					ordLine = line;
-					finish = true;
-				} else {
-					// I'm in the first section or in the second one
-					if (endFirst == true) {
-						// the first section is finished, so I'm the second
-						// section
-						constrLines.add(line);
-					} else {
-						// I'm in the first section
-						varLines.add(line);
-					}
-				}
+	private Triplet<List<String>, List<String>, String> groupLines() throws ParseException, IOException {
+		try(final Stream<String> fileLinesStream = Files.lines(Paths.get(path))) {
+			final List<String> fileLines = fileLinesStream.toList();
+			final IntStream blankLinesIndicesStream = IntStream.range(0, fileLines.size())
+					.filter(index -> fileLines.get(index).isEmpty());
+			final int[] groupsIndices =
+					Stream.of(IntStream.of(-1), blankLinesIndicesStream, IntStream.of(fileLines.size()))
+							.flatMapToInt(Function.identity())
+							.toArray();
+			final List<List<String>> lineGroups = IntStream.range(0, groupsIndices.length - 1)
+					.mapToObj(i -> fileLines.subList(groupsIndices[i] + 1, groupsIndices[i + 1]))
+					.limit(3)
+					.toList();
+			if (lineGroups.size() < REQUIRED_NUMBER_GROUPS) {
+				throw new ParseException("Il file deve contenere almeno 3 gruppi separati da una linea vuota", 0);
 			}
-
-			line = reader.readLine();
+			return Triplet.with(lineGroups.get(0), lineGroups.get(1), lineGroups.get(2).stream().findFirst().orElse(null));
+		} catch (IOException e) {
+			e.printStackTrace();
+			throw e;
 		}
-
-		reader.close();
-
-		return Triplet.with(varLines, constrLines, ordLine);
 	}
 
 	/*
@@ -164,28 +134,22 @@ public class InputParser {
 	 * 
 	 * @throws ParseException if one or more strings do not follow the syntax
 	 */
-	private Set<Variable> createVariablesSet(final Vector<String> varLines)
+	private Set<Variable> createVariablesSet(final List<String> varLines)
 			throws ParseException {
-		Set<Variable> variables = new HashSet<Variable>();
+		Set<Variable> variables = new HashSet<>();
 
 		Pattern varPattern = Pattern.compile("\\w+\\:\\{\\w+(,\\w+)*\\}");
 		for (String varLine : varLines) {
 			Matcher m = varPattern.matcher(varLine);
 			if (m.matches()) {
-				String name = varLine.split("\\:")[0];
-				String valuesStr = varLine.split("\\:")[1];
+				String name = varLine.split(":")[0];
+				String valuesStr = varLine.split(":")[1];
 
 				// I remove curly brackets from the string that contains
 				// domain's values and then I split the new string around the
 				// ',' to obtain singular values
 				valuesStr = valuesStr.substring(1, valuesStr.length() - 1);
-				String[] values = valuesStr.split(",");
-
-				HashSet<String> valuesSet = new HashSet<>();
-				for (String value : values) {
-					valuesSet.add(value);
-				}
-
+				final Set<String> valuesSet = Stream.of(valuesStr.split(",")).collect(Collectors.toSet());
 				variables.add(new Variable(name, valuesSet));
 			} else {
 				throw new ParseException(
@@ -210,7 +174,7 @@ public class InputParser {
 	 * @throws ParseException if one or more strings do not follow the syntax
 	 */
 	private Set<Constraint> createConstraintsSet(
-			final Vector<String> constrLines, final Set<Variable> variables)
+			final List<String> constrLines, final Set<Variable> variables)
 			throws ParseException {
 		Set<Constraint> constraints = new HashSet<>();
 
@@ -311,7 +275,7 @@ public class InputParser {
 			for (String constrVarName : constraint.getVariables()) {
 				if (!existsVariableWithName(variables, constrVarName)) {
 					throw new UnknownVariableException(constrVarName,
-							CategoryLines.Constraints);
+							CategoryLines.CONSTRAINTS);
 				}
 			}
 
@@ -342,7 +306,7 @@ public class InputParser {
 		for (String variableName : varOrder) {
 			if (!existsVariableWithName(variables, variableName)) {
 				throw new UnknownVariableException(variableName,
-						CategoryLines.OrderLine);
+						CategoryLines.ORDER_LINE);
 			}
 		}
 	}

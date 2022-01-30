@@ -36,10 +36,9 @@ import org.javatuples.Triplet;
 public class ResultFrame extends JFrame {
 	private static final long serialVersionUID = -5266436189112789407L;
 	private Triplet<Set<Variable>, Set<Constraint>, List<String>> startingInfo;
-	private JScrollPane mainPanel;
 	private JTextArea computationArea = new JTextArea();
 	private JMenuItem saveMenuItem = new JMenuItem("Salva computazione");
-	private JMenuBar menuBar = new JMenuBar();
+	private JMenuBar resultFrameMenuBar = new JMenuBar();
 
 	/**
 	 * The main constructor of the class. It requires the information obtained
@@ -78,12 +77,12 @@ public class ResultFrame extends JFrame {
 		computationArea.setFont(new Font(null, Font.PLAIN, 14));
 		computationArea.setWrapStyleWord(true);
 
-		mainPanel = new JScrollPane(computationArea);
+		var mainPanel = new JScrollPane(computationArea);
 
 		saveMenuItem.addActionListener(new SaveListener());
 
-		menuBar.add(saveMenuItem);
-		setJMenuBar(menuBar);
+		resultFrameMenuBar.add(saveMenuItem);
+		setJMenuBar(resultFrameMenuBar);
 
 		add(mainPanel);
 	}
@@ -128,50 +127,43 @@ public class ResultFrame extends JFrame {
 		@Override
 		public void actionPerformed(ActionEvent e) {
 			JFileChooser fileChooser = new JFileChooser();
-			FileWriter fileWriter = null;
 
 			int chooserValue = fileChooser.showSaveDialog(null);
-			if (chooserValue == JFileChooser.APPROVE_OPTION) {
-				File selFile = fileChooser.getSelectedFile();
-
-				try {
-					if (selFile.createNewFile()) {
-						fileWriter = new FileWriter(selFile);
-					} else {
-						int answer = JOptionPane
-								.showConfirmDialog(
-										null,
-										"Il file "
-												+ selFile.getName()
-												+ " esiste già.\nVuoi sovrascrivere il file?",
-										"File esistente",
-										JOptionPane.YES_NO_OPTION,
-										JOptionPane.QUESTION_MESSAGE);
-
-						if (answer == JOptionPane.YES_OPTION) {
-							fileWriter = new FileWriter(selFile);
-						}
-					}
-
-					if (fileWriter != null) {
-						fileWriter.write(computationArea.getText());
-					}
-				} catch (IOException exc) {
-					JOptionPane
-							.showMessageDialog(
-									null,
-									"Errore durante l'apertura o la creazione del file di output",
-									"Errore", JOptionPane.ERROR_MESSAGE);
-				} finally {
-					if (fileWriter != null) {
-						try {
-							fileWriter.close();
-						} catch (IOException e1) {
-						}
-					}
-				}
-
+			if (chooserValue != JFileChooser.APPROVE_OPTION) {
+				return;
 			}
+
+			File selFile = fileChooser.getSelectedFile();
+			try (FileWriter fileWriter = getFileWriter(selFile)) {
+				if (fileWriter != null) {
+					fileWriter.write(computationArea.getText());
+				}
+			} catch (IOException ex) {
+				ex.printStackTrace();
+				JOptionPane.showMessageDialog(
+								null,
+								"Errore durante l'apertura o la creazione del file di output",
+								"Errore", JOptionPane.ERROR_MESSAGE);
+			}
+		}
+
+		private FileWriter getFileWriter(File selFile) throws IOException {
+			if (selFile.createNewFile()) {
+				return new FileWriter(selFile);
+			}
+			int answer = JOptionPane.showConfirmDialog(
+					null,
+					"Il file "
+							+ selFile.getName()
+							+ " esiste già.\nVuoi sovrascrivere il file?",
+					"File esistente",
+					JOptionPane.YES_NO_OPTION,
+					JOptionPane.QUESTION_MESSAGE);
+
+			if (answer == JOptionPane.YES_OPTION) {
+				return new FileWriter(selFile);
+			}
+			return null;
 		}
 
 	}

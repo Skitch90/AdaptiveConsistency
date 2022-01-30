@@ -13,7 +13,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.Vector;
 
 import it.alesc.adaptiveconsistency.logic.csp.Constraint;
 import it.alesc.adaptiveconsistency.logic.csp.Variable;
@@ -58,8 +57,8 @@ public class ProblemSolver {
 	 * @param ordLine
 	 *            the variables order
 	 */
-	public ProblemSolver(final HashSet<Variable> variables,
-			final HashSet<Constraint> constraints, final List<String> ordLine) {
+	public ProblemSolver(final Set<Variable> variables,
+			final Set<Constraint> constraints, final List<String> ordLine) {
 		this.variables = variables;
 		this.constraints = constraints;
 		this.ordLine = ordLine;
@@ -81,8 +80,8 @@ public class ProblemSolver {
 	 *            the frame where progression of computation is shown or
 	 *            <code>null</code> if no progression must be shown
 	 */
-	public ProblemSolver(final HashSet<Variable> variables,
-			final HashSet<Constraint> constraints, final List<String> ordLine,
+	public ProblemSolver(final Set<Variable> variables,
+			final Set<Constraint> constraints, final List<String> ordLine,
 			final ResultFrame resultFrame) {
 		this.variables = variables;
 		this.constraints = constraints;
@@ -278,7 +277,7 @@ public class ProblemSolver {
 	private Constraint consistency(final Variable variable,
 			final List<Variable> parents, final Set<Constraint> constraints) {
 		// Getting applicable constraints
-		Vector<Constraint> applicableConstr = getApplicableConstraints(
+		List<Constraint> applicableConstr = getApplicableConstraints(
 				constraints, variable.getName(), getNamesFromVariables(parents));
 
 		// Getting all tuples from variables' domains
@@ -325,71 +324,79 @@ public class ProblemSolver {
 			final Constraint constraint) {
 		if (constraint.getVariables().isEmpty()) {
 			return consistentCSP;
-		} else if (constraint.getVariables().size() == 1) {
-			// the constraint involves one variable, so I can use it to update
-			// the domain of the variable
-			String varName = constraint.getVariables().get(0);
-
-			// Because every tuple of the constraint contains only one value, I
-			// make a set with the values and I use it in the intersection
-			Set<String> domain = new HashSet<>();
-			for (List<String> list : constraint.getCompTuples()) {
-				domain.add(list.get(0));
-			}
-
-			Set<Variable> newVariables = new HashSet<>();
-
-			for (Variable cspVariable : consistentCSP.getValue0()) {
-				if (cspVariable.getName().equals(varName)) {
-					Set<String> newDomain = setIntersection(domain,
-							cspVariable.getDomain());
-
-					newVariables.add(new Variable(varName, newDomain));
-				} else {
-					newVariables.add(cspVariable);
-				}
-
-			}
-
-			return Pair.with(newVariables, consistentCSP.getValue1());
-		} else {
-			// the constraint involves more than one variable, so I use it to
-			// update the constraint of the CSP with the same variables or, if
-			// it does not exist I add it to CSP's constraints
-			Set<Constraint> newConstraints = new HashSet<>();
-
-			Set<Constraint> cspConstraints = consistentCSP.getValue1();
-
-			boolean found = false;
-			for (Constraint cspConstraint : cspConstraints) {
-				List<String> cspConstrVars = cspConstraint.getVariables();
-
-				if (isPermutationOf(constraint.getVariables(), cspConstrVars)) {
-					found = true;
-					Constraint permutedConstraint = permuteConstraint(
-							constraint, cspConstrVars);
-
-					if (cspConstrVars.equals(permutedConstraint.getVariables())) {
-
-						Set<List<String>> newTuples = setIntersection(
-								cspConstraint.getCompTuples(),
-								permutedConstraint.getCompTuples());
-
-						newConstraints.add(new Constraint(cspConstraint
-								.getVariables(), newTuples));
-					}
-				} else {
-					newConstraints.add(cspConstraint);
-				}
-			}
-
-			if (!found) {
-				newConstraints = new HashSet<>(cspConstraints);
-				newConstraints.add(constraint);
-			}
-
-			return Pair.with(consistentCSP.getValue0(), newConstraints);
 		}
+		if (constraint.getVariables().size() == 1) {
+			return computeCSPSingleVariable(consistentCSP, constraint);
+		}
+		return computeCSPMultipleVariables(consistentCSP, constraint);
+	}
+
+	private Pair<Set<Variable>, Set<Constraint>> computeCSPMultipleVariables(Pair<Set<Variable>, Set<Constraint>> consistentCSP, Constraint constraint) {
+		// the constraint involves more than one variable, so I use it to
+		// update the constraint of the CSP with the same variables or, if
+		// it does not exist I add it to CSP's constraints
+		Set<Constraint> newConstraints = new HashSet<>();
+
+		Set<Constraint> cspConstraints = consistentCSP.getValue1();
+
+		boolean found = false;
+		for (Constraint cspConstraint : cspConstraints) {
+			List<String> cspConstrVars = cspConstraint.getVariables();
+
+			if (isPermutationOf(constraint.getVariables(), cspConstrVars)) {
+				found = true;
+				Constraint permutedConstraint = permuteConstraint(
+						constraint, cspConstrVars);
+
+				if (cspConstrVars.equals(permutedConstraint.getVariables())) {
+
+					Set<List<String>> newTuples = setIntersection(
+							cspConstraint.getCompTuples(),
+							permutedConstraint.getCompTuples());
+
+					newConstraints.add(new Constraint(cspConstraint
+							.getVariables(), newTuples));
+				}
+			} else {
+				newConstraints.add(cspConstraint);
+			}
+		}
+
+		if (!found) {
+			newConstraints = new HashSet<>(cspConstraints);
+			newConstraints.add(constraint);
+		}
+
+		return Pair.with(consistentCSP.getValue0(), newConstraints);
+	}
+
+	private Pair<Set<Variable>, Set<Constraint>> computeCSPSingleVariable(Pair<Set<Variable>, Set<Constraint>> consistentCSP, Constraint constraint) {
+		// the constraint involves one variable, so I can use it to update
+		// the domain of the variable
+		String varName = constraint.getVariables().get(0);
+
+		// Because every tuple of the constraint contains only one value, I
+		// make a set with the values and I use it in the intersection
+		Set<String> domain = new HashSet<>();
+		for (List<String> list : constraint.getCompTuples()) {
+			domain.add(list.get(0));
+		}
+
+		Set<Variable> newVariables = new HashSet<>();
+
+		for (Variable cspVariable : consistentCSP.getValue0()) {
+			if (cspVariable.getName().equals(varName)) {
+				Set<String> newDomain = setIntersection(domain,
+						cspVariable.getDomain());
+
+				newVariables.add(new Variable(varName, newDomain));
+			} else {
+				newVariables.add(cspVariable);
+			}
+
+		}
+
+		return Pair.with(newVariables, consistentCSP.getValue1());
 	}
 
 	/*
@@ -440,7 +447,7 @@ public class ProblemSolver {
 				List<String> allVarNames = new ArrayList<>(solVarNames);
 				allVarNames.add(variableName);
 
-				Vector<Constraint> appConstraints = getApplicableConstraints(
+				List<Constraint> appConstraints = getApplicableConstraints(
 						consistentCSP.getValue1(), variableName, solVarNames);
 
 				boolean found = false;
@@ -495,12 +502,12 @@ public class ProblemSolver {
 	 * 
 	 * @return the applicable constraints
 	 */
-	private Vector<Constraint> getApplicableConstraints(
+	private List<Constraint> getApplicableConstraints(
 			final Set<Constraint> constraints, final String variableName,
 			final List<String> parentsNames) {
-		Vector<Constraint> appConstraints = new Vector<>();
+		List<Constraint> appConstraints = new ArrayList<>();
 
-		List<String> namesList = new ArrayList<String>();
+		List<String> namesList = new ArrayList<>();
 		namesList.add(variableName);
 		namesList.addAll(parentsNames);
 
@@ -525,7 +532,7 @@ public class ProblemSolver {
 	 * @return the vector of tuples created using domain's values
 	 */
 	private List<List<String>> getAllTuples(final List<Variable> variables) {
-		if (variables.size() == 0) {
+		if (variables.isEmpty()) {
 			// If there are no variables I return a vector with the empty tuple
 			List<String> emptyTuple = Collections.emptyList();
 
@@ -535,10 +542,10 @@ public class ProblemSolver {
 		// I extract the domain of the first variable and the list of variables
 		// without the first one from the specified variables.
 		Set<String> firstVarDomain = variables.get(0).getDomain();
-		List<Variable> VarTail = variables.subList(1, variables.size());
+		List<Variable> varTail = variables.subList(1, variables.size());
 
 		// I obtain tuples for the new list
-		List<List<String>> subProbTuples = getAllTuples(VarTail);
+		List<List<String>> subProbTuples = getAllTuples(varTail);
 
 		// For each tuple in the result of the subproblem I create n tuples,
 		// where n is the number of elements in the domain of the first
@@ -577,7 +584,7 @@ public class ProblemSolver {
 			final List<String> variableNames, final List<Constraint> constraints) {
 		// If there are no constraints to consider or there are no acceptable
 		// tuples I return the current list of tuples
-		if (constraints.size() == 0 || allTuples.size() == 0) {
+		if (constraints.isEmpty() || allTuples.isEmpty()) {
 			return allTuples;
 		}
 
@@ -593,7 +600,7 @@ public class ProblemSolver {
 		// for each tuple in the list returned by the subproblem I test if it is
 		// acceptable according to the first constraint. If it is acceptable I
 		// add it to the result of the problem.
-		List<List<String>> filteredTuples = new Vector<>();
+		List<List<String>> filteredTuples = new ArrayList<>();
 		for (List<String> tuple : filteredTail) {
 			if (isAcceptable(tuple, variableNames, firstConstraint)) {
 				filteredTuples.add(tuple);
@@ -760,14 +767,14 @@ public class ProblemSolver {
 			Variable variable = getVariableFromName(varNames.get(0),
 					csp.getValue0());
 
-			if (variable != null && variable.getDomain().size() == 0) {
+			if (variable != null && variable.getDomain().isEmpty()) {
 				return false;
 			}
 		} else {
 			Constraint constraint = searchConstraintwithVariables(varNames,
 					csp.getValue1());
 
-			if (constraint != null && constraint.getCompTuples().size() == 0) {
+			if (constraint != null && constraint.getCompTuples().isEmpty()) {
 				return false;
 			}
 		}

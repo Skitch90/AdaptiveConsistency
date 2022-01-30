@@ -10,7 +10,7 @@ package it.alesc.adaptiveconsistency.logic.exceptions;
  */
 public class DuplicateVariableNameException extends Exception {
 	private static final long serialVersionUID = 8270071998227457822L;
-	private String name;
+	private final String name;
 
 	/**
 	 * The default constructor of the class. It requires the specification of

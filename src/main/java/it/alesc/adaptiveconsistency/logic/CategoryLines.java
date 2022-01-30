@@ -11,13 +11,13 @@ public enum CategoryLines {
 	/**
 	 * <code>Variables</code> value indicates the variables group
 	 */
-	Variables,
+	VARIABLES,
 	/**
 	 * <code>Constraints</code> value indicates the constraints group
 	 */
-	Constraints,
+	CONSTRAINTS,
 	/**
 	 * <code>OrderLine</code> value indicates the order line
 	 */
-	OrderLine
+	ORDER_LINE
 }

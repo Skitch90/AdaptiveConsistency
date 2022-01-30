@@ -1,5 +1,7 @@
 package it.alesc.adaptiveconsistency.logic.csp;
 
+import org.apache.commons.collections.CollectionUtils;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -105,7 +107,7 @@ public class Constraint {
 			return true;
 		}
 
-		if (obj == null || !(obj instanceof Constraint)) {
+		if (!(obj instanceof Constraint)) {
 			return false;
 		}
 
@@ -164,10 +166,10 @@ public class Constraint {
 	private HashSet<List<String>> constrCompTuples(
 			final List<String> variableNames, final Set<Variable> variables,
 			final String op) {
-		HashSet<List<String>> compTuples = new HashSet<>();
+		HashSet<List<String>> constrCompTuples = new HashSet<>();
 
-		if (variableNames.size() == 0) {
-			return compTuples;
+		if (variableNames.isEmpty()) {
+			return constrCompTuples;
 		}
 		/*
 		 * I extract the variable which name is the first element of the names
@@ -177,41 +179,42 @@ public class Constraint {
 		Variable firstVar = searchVariableByName(variables,
 				variableNames.get(0));
 
-		if (firstVar != null) {
-			Set<String> firstDomain = firstVar.getDomain();
+		if (firstVar == null) {
+			return constrCompTuples;
+		}
 
-			/*
-			 * I use the array created by copy to create the tuples considering
-			 * variables in the array.
-			 */
-			List<String> variableNamesTail = variableNames.subList(1,
-					variableNames.size());
+		Set<String> firstDomain = firstVar.getDomain();
 
-			HashSet<List<String>> tuples = constrCompTuples(variableNamesTail,
-					variables, op);
+		/*
+		 * I use the array created by copy to create the tuples considering
+		 * variables in the array.
+		 */
+		List<String> variableNamesTail = variableNames.subList(1,
+				variableNames.size());
 
-			/*
-			 * for any tuple of the result of the recursive call I generate
-			 * tuples adding an element of the first element domain but keeping
-			 * the property satisfied.
-			 */
-			for (String elemDomain : firstDomain) {
-				if (tuples.size() == 0) {
-					compTuples.add(Collections.singletonList(elemDomain));
-				} else {
-					for (List<String> tuple : tuples) {
-						List<String> newTuple = createNewTuple(elemDomain,
-								tuple, op);
-						if (newTuple != null) {
-							compTuples.add(newTuple);
-						}
+		HashSet<List<String>> tuples = constrCompTuples(variableNamesTail,
+				variables, op);
+
+		/*
+		 * for any tuple of the result of the recursive call I generate
+		 * tuples adding an element of the first element domain but keeping
+		 * the property satisfied.
+		 */
+		for (String elemDomain : firstDomain) {
+			if (tuples.isEmpty()) {
+				constrCompTuples.add(Collections.singletonList(elemDomain));
+			} else {
+				for (List<String> tuple : tuples) {
+					List<String> newTuple = createNewTuple(elemDomain,
+							tuple, op);
+					if (!CollectionUtils.isEmpty(newTuple)) {
+						constrCompTuples.add(newTuple);
 					}
 				}
 			}
-
 		}
 
-		return compTuples;
+		return constrCompTuples;
 	}
 
 	/*
@@ -250,13 +253,13 @@ public class Constraint {
 			 * The property is satisfied for any element of the tuple, so the
 			 * new tuple is constructed
 			 */
-			List<String> resTuple = new ArrayList<String>();
+			List<String> resTuple = new ArrayList<>();
 			resTuple.add(value);
 			resTuple.addAll(tuple);
 
 			return resTuple;
 		} else {
-			return null;
+			return Collections.emptyList();
 		}
 	}
 }

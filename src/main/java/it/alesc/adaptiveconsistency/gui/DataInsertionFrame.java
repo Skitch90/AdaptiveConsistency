@@ -4,9 +4,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
+import java.io.Serial;
 import java.text.ParseException;
-import java.util.List;
-import java.util.Set;
 
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
@@ -17,13 +16,9 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 
 import it.alesc.adaptiveconsistency.logic.InputParser;
-import it.alesc.adaptiveconsistency.logic.csp.Constraint;
-import it.alesc.adaptiveconsistency.logic.csp.Variable;
 import it.alesc.adaptiveconsistency.logic.exceptions.DuplicateVariableNameException;
 import it.alesc.adaptiveconsistency.logic.exceptions.UnknownVariableException;
 import it.alesc.adaptiveconsistency.logic.exceptions.WrongVariablesNumberException;
-
-import org.javatuples.Triplet;
 
 /**
  * It is the window to select the source file and start the computation to solve
@@ -34,14 +29,15 @@ import org.javatuples.Triplet;
  * 
  */
 public class DataInsertionFrame extends JFrame {
+	@Serial
 	private static final long serialVersionUID = 1216585958133368789L;
 	public static final String SOURCE_FILE_ERROR_MESSAGE = "Errore nel file sorgente";
-	private JPanel mainPanel = new JPanel();
-	private JLabel sourceFileLabel = new JLabel("File sorgente");
-	private JTextField sourceFileText = new JTextField();
-	private JButton sourceFileButton = new JButton("Scegli");
-	private JFileChooser sourceFileChooser = new JFileChooser();
-	private JButton startButton = new JButton("Procedi");
+	private final JPanel mainPanel = new JPanel();
+	private final JLabel sourceFileLabel = new JLabel("File sorgente");
+	private final JTextField sourceFileText = new JTextField();
+	private final JButton sourceFileButton = new JButton("Scegli");
+	private final JFileChooser sourceFileChooser = new JFileChooser();
+	private final JButton startButton = new JButton("Procedi");
 
 	/**
 	 * The main constructor of the class.
@@ -99,8 +95,7 @@ public class DataInsertionFrame extends JFrame {
 			InputParser parser = new InputParser(filePath);
 
 			try {
-				Triplet<Set<Variable>, Set<Constraint>, List<String>> result = parser
-						.parseFile();
+				var result = parser.parseFile();
 
 				dispose();
 

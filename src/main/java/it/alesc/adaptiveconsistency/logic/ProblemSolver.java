@@ -14,12 +14,11 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 
+import it.alesc.adaptiveconsistency.logic.csp.CSP;
 import it.alesc.adaptiveconsistency.logic.csp.Constraint;
+import it.alesc.adaptiveconsistency.logic.csp.StartInformation;
 import it.alesc.adaptiveconsistency.logic.csp.Variable;
 import it.alesc.adaptiveconsistency.logic.exceptions.NotSatisfiableException;
-
-import org.javatuples.Pair;
-import org.javatuples.Triplet;
 
 /**
  * This class implements the adaptive consistency algorithm.
@@ -32,79 +31,19 @@ public class ProblemSolver {
 	/**
 	 * the list of variables of the CSP.
 	 */
-	private Set<Variable> variables;
+	private final Set<Variable> variables;
 	/**
 	 * the list of constraints of the CSP.
 	 */
-	private Set<Constraint> constraints;
+	private final Set<Constraint> constraints;
 	/**
 	 * the variables order for the adaptive consistency.
 	 */
-	private List<String> ordLine;
+	private final List<String> ordLine;
 	/**
 	 * The frame in which the progression of the computation is shown
 	 */
-	private ResultFrame resultFrame;
-
-	/**
-	 * The class constructor that creates a new solver with the specified list
-	 * of variables, list of constraints and the variables order.
-	 * 
-	 * @param variables
-	 *            the list of variables of the CSP
-	 * @param constraints
-	 *            the list of constraints of the CSP
-	 * @param ordLine
-	 *            the variables order
-	 */
-	public ProblemSolver(final Set<Variable> variables,
-			final Set<Constraint> constraints, final List<String> ordLine) {
-		this.variables = variables;
-		this.constraints = constraints;
-		this.ordLine = ordLine;
-		this.resultFrame = null;
-	}
-
-	/**
-	 * The class constructor that creates a new solver with the specified list
-	 * of variables, list of constraints, the variables order and the frame to
-	 * show computation progression.
-	 * 
-	 * @param variables
-	 *            the list of variables of the CSP
-	 * @param constraints
-	 *            the list of constraints of the CSP
-	 * @param ordLine
-	 *            the variables order
-	 * @param resultFrame
-	 *            the frame where progression of computation is shown or
-	 *            <code>null</code> if no progression must be shown
-	 */
-	public ProblemSolver(final Set<Variable> variables,
-			final Set<Constraint> constraints, final List<String> ordLine,
-			final ResultFrame resultFrame) {
-		this.variables = variables;
-		this.constraints = constraints;
-		this.ordLine = ordLine;
-		this.resultFrame = resultFrame;
-	}
-
-	/**
-	 * The class constructor that creates a new solver with the specified tuple
-	 * that contains the list of variables, the list of constraints and the
-	 * variables order.
-	 * 
-	 * @param data
-	 *            the tuple containing the list of variables, the list of
-	 *            constraints and the variables order
-	 */
-	public ProblemSolver(
-			final Triplet<Set<Variable>, Set<Constraint>, List<String>> data) {
-		this.variables = data.getValue0();
-		this.constraints = data.getValue1();
-		this.ordLine = data.getValue2();
-		this.resultFrame = null;
-	}
+	private final ResultFrame resultFrame;
 
 	/**
 	 * The class constructor that creates a new solver with the specified tuple
@@ -119,48 +58,12 @@ public class ProblemSolver {
 	 *            <code>null</code> if no progression must be shown
 	 */
 	public ProblemSolver(
-			final Triplet<Set<Variable>, Set<Constraint>, List<String>> data,
+			final StartInformation data,
 			final ResultFrame resultFrame) {
-		this.variables = data.getValue0();
-		this.constraints = data.getValue1();
-		this.ordLine = data.getValue2();
+		this.variables = data.variables();
+		this.constraints = data.constraints();
+		this.ordLine = data.variableOrder();
 		this.resultFrame = resultFrame;
-	}
-
-	/**
-	 * Returns the list of variables.
-	 * 
-	 * @return the list of variables
-	 */
-	public Set<Variable> getVariables() {
-		return variables;
-	}
-
-	/**
-	 * Returns the list of constraints.
-	 * 
-	 * @return the list of constraints
-	 */
-	public Set<Constraint> getConstraints() {
-		return constraints;
-	}
-
-	/**
-	 * Returns the variables order.
-	 * 
-	 * @return the variables order
-	 */
-	public List<String> getOrdLine() {
-		return ordLine;
-	}
-
-	/**
-	 * Results the frame used to show computation progression.
-	 * 
-	 * @return the frame used to show computation progression
-	 */
-	public ResultFrame getResultFrame() {
-		return resultFrame;
 	}
 
 	/**
@@ -172,10 +75,10 @@ public class ProblemSolver {
 	 *             if the problem has no solutions
 	 */
 	public Map<String, String> solve() throws NotSatisfiableException {
-		if (!isSatifiable(Pair.with(variables, constraints), null)) {
+		if (notSatisfiable(new CSP(variables, constraints), null)) {
 			throw new NotSatisfiableException();
 		} else {
-			Pair<Set<Variable>, Set<Constraint>> consistentCSP = adaptiveConsistency();
+			CSP consistentCSP = adaptiveConsistency();
 			return getSolution(consistentCSP, ordLine);
 		}
 	}
@@ -189,26 +92,24 @@ public class ProblemSolver {
 	 * 
 	 * @throws NotSatisfiableException if the problem has no solutions
 	 */
-	private Pair<Set<Variable>, Set<Constraint>> adaptiveConsistency()
+	private CSP adaptiveConsistency()
 			throws NotSatisfiableException {
 		if (resultFrame != null) {
 			resultFrame.updateTextArea("\n\nConsistenza adattiva:", true);
 		}
 
-		Pair<Set<Variable>, Set<Constraint>> consistentCSP = Pair.with(
-				variables, constraints);
+		var consistentCSP = new CSP(variables, constraints);
 
 		for (int i = ordLine.size() - 1; i > -1; i--) {
-			Variable variable = getVariableFromName(ordLine.get(i),
-					consistentCSP.getValue0());
+			Variable variable = getVariableFromName(ordLine.get(i),	consistentCSP.variables());
 			if (variable != null) {
 				// Computing Parents(Var_i)
 				List<Variable> parents = getParents(variable,
-						consistentCSP.getValue0(), i);
+						consistentCSP.variables(), i);
 
 				// Performing consistency (Var_i, Parents(Var_i))
 				Constraint newConstraint = consistency(variable, parents,
-						consistentCSP.getValue1());
+						consistentCSP.constraints());
 
 				// Updating the CSP using result of consistency
 				consistentCSP = updateCSP(consistentCSP, newConstraint);
@@ -217,13 +118,13 @@ public class ProblemSolver {
 					String text = "\n\nIterazione n°" + (ordLine.size() - i)
 							+ "\nVariabile: " + ordLine.get(i)
 							+ "\nCSP aggiornato:\n\tVariabili:"
-							+ consistentCSP.getValue0() + "\n\tVincoli:"
-							+ consistentCSP.getValue1();
+							+ consistentCSP.variables() + "\n\tVincoli:"
+							+ consistentCSP.constraints();
 
 					resultFrame.updateTextArea(text, true);
 				}
 
-				if (!isSatifiable(consistentCSP, newConstraint.getVariables())) {
+				if (notSatisfiable(consistentCSP, newConstraint.getVariables())) {
 					throw new NotSatisfiableException();
 				}
 			}
@@ -319,8 +220,8 @@ public class ProblemSolver {
 	 * 
 	 * @return the new CSP updated with new information
 	 */
-	private Pair<Set<Variable>, Set<Constraint>> updateCSP(
-			final Pair<Set<Variable>, Set<Constraint>> consistentCSP,
+	private CSP updateCSP(
+			final CSP consistentCSP,
 			final Constraint constraint) {
 		if (constraint.getVariables().isEmpty()) {
 			return consistentCSP;
@@ -331,13 +232,13 @@ public class ProblemSolver {
 		return computeCSPMultipleVariables(consistentCSP, constraint);
 	}
 
-	private Pair<Set<Variable>, Set<Constraint>> computeCSPMultipleVariables(Pair<Set<Variable>, Set<Constraint>> consistentCSP, Constraint constraint) {
+	private CSP computeCSPMultipleVariables(CSP consistentCSP, Constraint constraint) {
 		// the constraint involves more than one variable, so I use it to
 		// update the constraint of the CSP with the same variables or, if
 		// it does not exist I add it to CSP's constraints
 		Set<Constraint> newConstraints = new HashSet<>();
 
-		Set<Constraint> cspConstraints = consistentCSP.getValue1();
+		Set<Constraint> cspConstraints = consistentCSP.constraints();
 
 		boolean found = false;
 		for (Constraint cspConstraint : cspConstraints) {
@@ -367,10 +268,10 @@ public class ProblemSolver {
 			newConstraints.add(constraint);
 		}
 
-		return Pair.with(consistentCSP.getValue0(), newConstraints);
+		return new CSP(consistentCSP.variables(), newConstraints);
 	}
 
-	private Pair<Set<Variable>, Set<Constraint>> computeCSPSingleVariable(Pair<Set<Variable>, Set<Constraint>> consistentCSP, Constraint constraint) {
+	private CSP computeCSPSingleVariable(CSP consistentCSP, Constraint constraint) {
 		// the constraint involves one variable, so I can use it to update
 		// the domain of the variable
 		String varName = constraint.getVariables().get(0);
@@ -384,7 +285,7 @@ public class ProblemSolver {
 
 		Set<Variable> newVariables = new HashSet<>();
 
-		for (Variable cspVariable : consistentCSP.getValue0()) {
+		for (Variable cspVariable : consistentCSP.variables()) {
 			if (cspVariable.getName().equals(varName)) {
 				Set<String> newDomain = setIntersection(domain,
 						cspVariable.getDomain());
@@ -396,7 +297,7 @@ public class ProblemSolver {
 
 		}
 
-		return Pair.with(newVariables, consistentCSP.getValue1());
+		return new CSP(newVariables, consistentCSP.constraints());
 	}
 
 	/*
@@ -415,13 +316,13 @@ public class ProblemSolver {
 	 * @return <code>true</code> if the problem is satisfiable,
 	 * <code>false</code> otherwise
 	 */
-	private boolean isSatifiable(
-			final Pair<Set<Variable>, Set<Constraint>> csp,
+	private boolean notSatisfiable(
+			final CSP csp,
 			final List<String> constrVariables) {
 		if (constrVariables == null) {
-			return completeSatisfiabilityCheck(csp);
+			return !completeSatisfiabilityCheck(csp);
 		} else {
-			return quickSatisfiabilityCheck(csp, constrVariables);
+			return !quickSatisfiabilityCheck(csp, constrVariables);
 		}
 	}
 
@@ -433,13 +334,13 @@ public class ProblemSolver {
 	 * @return a solution of the CSP
 	 */
 	private Map<String, String> getSolution(
-			final Pair<Set<Variable>, Set<Constraint>> consistentCSP,
+			final CSP consistentCSP,
 			final List<String> order) {
 		Map<String, String> solution = new TreeMap<>();
 
 		for (String variableName : order) {
 			Variable variable = getVariableFromName(variableName,
-					consistentCSP.getValue0());
+					consistentCSP.variables());
 
 			if (variable != null) {
 				List<String> solVarNames = new ArrayList<>(solution.keySet());
@@ -448,7 +349,7 @@ public class ProblemSolver {
 				allVarNames.add(variableName);
 
 				List<Constraint> appConstraints = getApplicableConstraints(
-						consistentCSP.getValue1(), variableName, solVarNames);
+						consistentCSP.constraints(), variableName, solVarNames);
 
 				boolean found = false;
 				Iterator<String> it = variable.getDomain().iterator();
@@ -728,16 +629,16 @@ public class ProblemSolver {
 	 * otherwise
 	 */
 	private boolean completeSatisfiabilityCheck(
-			final Pair<Set<Variable>, Set<Constraint>> csp) {
+			final CSP csp) {
 		// checking variables
-		for (Variable variable : csp.getValue0()) {
+		for (Variable variable : csp.variables()) {
 			if (variable.getDomain().isEmpty()) {
 				return false;
 			}
 		}
 
 		// checking constraints
-		for (Constraint constraint : csp.getValue1()) {
+		for (Constraint constraint : csp.constraints()) {
 			if (constraint.getCompTuples().isEmpty()) {
 				return false;
 			}
@@ -761,25 +662,19 @@ public class ProblemSolver {
 	 * otherwise
 	 */
 	private boolean quickSatisfiabilityCheck(
-			final Pair<Set<Variable>, Set<Constraint>> csp,
+			final CSP csp,
 			final List<String> varNames) {
 		if (varNames.size() == 1) {
 			Variable variable = getVariableFromName(varNames.get(0),
-					csp.getValue0());
+					csp.variables());
 
-			if (variable != null && variable.getDomain().isEmpty()) {
-				return false;
-			}
+			return variable == null || !variable.getDomain().isEmpty();
 		} else {
 			Constraint constraint = searchConstraintwithVariables(varNames,
-					csp.getValue1());
+					csp.constraints());
 
-			if (constraint != null && constraint.getCompTuples().isEmpty()) {
-				return false;
-			}
+			return constraint == null || !constraint.getCompTuples().isEmpty();
 		}
-
-		return true;
 	}
 
 	/*

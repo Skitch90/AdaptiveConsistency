@@ -6,9 +6,8 @@ import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.List;
+import java.io.Serial;
 import java.util.Map;
-import java.util.Set;
 
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
@@ -19,11 +18,8 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 
 import it.alesc.adaptiveconsistency.logic.ProblemSolver;
-import it.alesc.adaptiveconsistency.logic.csp.Constraint;
-import it.alesc.adaptiveconsistency.logic.csp.Variable;
+import it.alesc.adaptiveconsistency.logic.csp.StartInformation;
 import it.alesc.adaptiveconsistency.logic.exceptions.NotSatisfiableException;
-
-import org.javatuples.Triplet;
 
 /**
  * It is the window where the progression of the computation is shown. It allows
@@ -34,21 +30,22 @@ import org.javatuples.Triplet;
  * 
  */
 public class ResultFrame extends JFrame {
+	@Serial
 	private static final long serialVersionUID = -5266436189112789407L;
-	private Triplet<Set<Variable>, Set<Constraint>, List<String>> startingInfo;
-	private JTextArea computationArea = new JTextArea();
-	private JMenuItem saveMenuItem = new JMenuItem("Salva computazione");
-	private JMenuBar resultFrameMenuBar = new JMenuBar();
+	private final StartInformation startingInfo;
+	private final JTextArea computationArea = new JTextArea();
+	private final JMenuItem saveMenuItem = new JMenuItem("Salva computazione");
+	private final JMenuBar resultFrameMenuBar = new JMenuBar();
 
 	/**
 	 * The main constructor of the class. It requires the information obtained
 	 * by parsing the file.
-	 * 
+	 *
 	 * @param startingInfo
 	 *            the information that is result of parsing the source file
 	 */
 	public ResultFrame(
-			final Triplet<Set<Variable>, Set<Constraint>, List<String>> startingInfo) {
+			final StartInformation startingInfo) {
 		super("Risoluzione CSP");
 		this.startingInfo = startingInfo;
 	}
@@ -89,9 +86,9 @@ public class ResultFrame extends JFrame {
 
 	private void startComputation() {
 		computationArea.setText("Informazioni iniziali:\n\nVariabili: "
-				+ startingInfo.getValue0() + "\nVincoli: "
-				+ startingInfo.getValue1() + "\nOrdinamento: "
-				+ startingInfo.getValue2());
+				+ startingInfo.variables() + "\nVincoli: "
+				+ startingInfo.constraints() + "\nOrdinamento: "
+				+ startingInfo.variableOrder());
 
 		try {
 			Map<String, String> solution = new ProblemSolver(startingInfo, this)

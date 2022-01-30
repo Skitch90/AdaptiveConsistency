@@ -1,5 +1,9 @@
 package it.alesc.adaptiveconsistency.logic.csp;
 
+import it.alesc.adaptiveconsistency.specification.Operator;
+import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import org.apache.commons.collections.CollectionUtils;
 
 import java.util.ArrayList;
@@ -8,6 +12,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static it.alesc.adaptiveconsistency.specification.Operator.EQUALS;
+import static it.alesc.adaptiveconsistency.specification.Operator.NOT_EQUALS;
+
 /**
  * It represents a CSP constraint.
  * 
@@ -15,75 +22,34 @@ import java.util.Set;
  * @version 4.0 05 Jan 2014
  * 
  */
+@Getter
+@AllArgsConstructor
+@EqualsAndHashCode
 public class Constraint {
 	/**
 	 * Variables involved in the constraint.
 	 */
-	private List<String> variables;
+	private final List<String> variables;
 	/**
 	 * Tuples that are admitted by the constraint.
 	 */
-	private Set<List<String>> compTuples;
-
-	/**
-	 * The constructor of the class that requires the variables involved in the
-	 * constraint and the set of tuples admitted by the constraint.
-	 * 
-	 * @param variables
-	 *            the variables involved in the constraint
-	 * @param compTuples
-	 *            the set of tuples admitted by the constraint
-	 */
-	public Constraint(final List<String> variables,
-			final Set<List<String>> compTuples) {
-		this.variables = variables;
-		this.compTuples = compTuples;
-	}
+	private final Set<List<String>> compTuples;
 
 	/**
 	 * The constructor of the class that requires the name of the variables
 	 * involved in the constraint, the set of variables of the CSP and the
 	 * operator of the constraint.
 	 * 
-	 * @param variableNames
+	 * @param constraintVariables
 	 *            the name of the variables involved in the constraint
 	 * @param variables
 	 *            the set of the variables of the CSP
-	 * @param op
+	 * @param operator
 	 *            the operator of the constraint
 	 */
-	public Constraint(final List<String> variableNames,
-			final Set<Variable> variables, String op) {
-		this.variables = variableNames;
-		this.compTuples = constrCompTuples(variableNames, variables, op);
-	}
-
-	/**
-	 * Returns the variables involved in the constraint.
-	 * 
-	 * @return the variables involved in the constraint
-	 */
-	public List<String> getVariables() {
-		return variables;
-	}
-
-	/**
-	 * Returns the set of tuples admitted by the constraint.
-	 * 
-	 * @return the set of tuples admitted by the constraint
-	 */
-	public Set<List<String>> getCompTuples() {
-		return compTuples;
-	}
-
-	/**
-	 * Sets the tuples that are admitted by the constraint
-	 * 
-	 * @param compTuples
-	 *            the set of admitted tuples to set
-	 */
-	public void setCompTuples(Set<List<String>> compTuples) {
-		this.compTuples = compTuples;
+	public Constraint(List<String> constraintVariables, Set<Variable> variables, Operator operator) {
+		this.variables = constraintVariables;
+		this.compTuples = computeTuples(constraintVariables, variables, operator);
 	}
 
 	/*
@@ -97,37 +63,6 @@ public class Constraint {
 	}
 
 	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see java.lang.Object#equals(java.lang.Object)
-	 */
-	@Override
-	public boolean equals(Object obj) {
-		if (obj == this) {
-			return true;
-		}
-
-		if (!(obj instanceof Constraint)) {
-			return false;
-		}
-
-		Constraint constraint = (Constraint) obj;
-
-		return variables.equals(constraint.variables)
-				&& compTuples.equals(constraint.compTuples);
-	}
-
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see java.lang.Object#hashCode()
-	 */
-	@Override
-	public int hashCode() {
-		return 17 * variables.hashCode() + compTuples.hashCode();
-	}
-
-	/*
 	 * Finds and returns the variable with the specified name in the specified
 	 * set of variables.
 	 * 
@@ -136,7 +71,7 @@ public class Constraint {
 	 * @param name the name of variable to find
 	 * 
 	 * @return the variable with the specified name or <code>null</code> if that
-	 * variable does not exists in the set
+	 * variable does not exist in the set
 	 */
 	private Variable searchVariableByName(final Set<Variable> variables,
 			final String name) {
@@ -163,9 +98,9 @@ public class Constraint {
 	 * 
 	 * @return the set of tuples that satisfy the property
 	 */
-	private HashSet<List<String>> constrCompTuples(
+	private HashSet<List<String>> computeTuples(
 			final List<String> variableNames, final Set<Variable> variables,
-			final String op) {
+			final Operator op) {
 		HashSet<List<String>> constrCompTuples = new HashSet<>();
 
 		if (variableNames.isEmpty()) {
@@ -173,7 +108,7 @@ public class Constraint {
 		}
 		/*
 		 * I extract the variable which name is the first element of the names
-		 * array and I create another array that is a copy of the names array
+		 * array, and I create another array that is a copy of the names array
 		 * but without the first element.
 		 */
 		Variable firstVar = searchVariableByName(variables,
@@ -192,7 +127,7 @@ public class Constraint {
 		List<String> variableNamesTail = variableNames.subList(1,
 				variableNames.size());
 
-		HashSet<List<String>> tuples = constrCompTuples(variableNamesTail,
+		HashSet<List<String>> tuples = computeTuples(variableNamesTail,
 				variables, op);
 
 		/*
@@ -232,14 +167,14 @@ public class Constraint {
 	 * not keep the property
 	 */
 	private List<String> createNewTuple(final String value,
-			final List<String> tuple, final String op) {
+			final List<String> tuple, final Operator op) {
 		boolean ok = true;
 		for (String elemTuple : tuple) {
-			if (op.equals("=")) {
+			if (op == EQUALS) {
 				if (!value.equals(elemTuple)) {
 					ok = false;
 				}
-			} else if (op.equals("!=")) {
+			} else if (op == NOT_EQUALS) {
 				if (value.equals(elemTuple)) {
 					ok = false;
 				}

@@ -1,0 +1,77 @@
+{
+  "variables": [
+    {
+      "name": "ciao",
+      "domainValues": [
+        "a",
+        "b",
+        "c"
+      ]
+    },
+    {
+      "name": "b",
+      "domainValues": [
+        "t",
+        "c",
+        "v",
+        "a"
+      ]
+    },
+    {
+      "name": "c",
+      "domainValues": [
+        "t",
+        "i",
+        "p",
+        "a"
+      ]
+    },
+    {
+      "name": "d",
+      "domainValues": [
+        "a",
+        "b",
+        "c",
+        "d"
+      ]
+    }
+  ],
+  "constraints": [
+    {
+      "firstVariable": "ciao",
+      "secondVariable": "b",
+      "operator": "EQUALS"
+    },
+    {
+      "firstVariable": "ciao",
+      "secondVariable": "c",
+      "operator": "EQUALS"
+    },
+    {
+      "firstVariable": "ciao",
+      "secondVariable": "d",
+      "operator": "EQUALS"
+    },
+    {
+      "firstVariable": "b",
+      "secondVariable": "c",
+      "operator": "EQUALS"
+    },
+    {
+      "firstVariable": "b",
+      "secondVariable": "d",
+      "operator": "EQUALS"
+    },
+    {
+      "firstVariable": "c",
+      "secondVariable": "d",
+      "operator": "EQUALS"
+    }
+  ],
+  "variableOrder": [
+    "c",
+    "ciao",
+    "b",
+    "d"
+  ]
+}

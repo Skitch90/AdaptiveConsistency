@@ -8,7 +8,7 @@ import it.alesc.adaptiveconsistency.gui.DataInsertionFrame;
  * @author Alessandro Schio
  * @version 1.0 08 Jan 2014
  */
-public class MainClass {
+public class AdaptiveConsistencyGUI {
 
 	/**
 	 * @param args

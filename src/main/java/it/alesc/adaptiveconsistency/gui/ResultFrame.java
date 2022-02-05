@@ -48,27 +48,12 @@ public class ResultFrame extends JFrame {
 			final StartInformation startingInfo) {
 		super("Risoluzione CSP");
 		this.startingInfo = startingInfo;
-	}
-
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see java.awt.Window#show()
-	 */
-	@SuppressWarnings("deprecation")
-	@Override
-	public void show() {
 		createFrame();
-		super.show();
 		setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-
-		if (startingInfo != null) {
-			startComputation();
-		}
 	}
 
 	private void createFrame() {
-		setSize(500, 700);
+		setSize(900, 700);
 
 		computationArea.setEditable(false);
 		computationArea.setFont(new Font(null, Font.PLAIN, 14));
@@ -84,7 +69,7 @@ public class ResultFrame extends JFrame {
 		add(mainPanel);
 	}
 
-	private void startComputation() {
+	public void solveProblem() {
 		computationArea.setText("Informazioni iniziali:\n\nVariabili: "
 				+ startingInfo.variables() + "\nVincoli: "
 				+ startingInfo.constraints() + "\nOrdinamento: "

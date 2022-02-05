@@ -8,6 +8,7 @@ import it.alesc.adaptiveconsistency.specification.ProblemSpecification;
 import org.apache.commons.io.FileUtils;
 
 import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
@@ -38,16 +39,7 @@ public class DataInsertionFrame extends JFrame {
 	 */
 	public DataInsertionFrame() {
 		super("Inserimento Dati");
-	}
-
-	/* (non-Javadoc)
-	 * @see java.awt.Window#show()
-	 */
-	@SuppressWarnings("deprecation")
-	@Override
-	public void show() {
 		createFrame();
-		super.show();
 		setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 	}
 
@@ -74,6 +66,7 @@ public class DataInsertionFrame extends JFrame {
 		sourcePanel.add(sourceFileButton);
 
 		sourceFileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+		sourceFileChooser.setFileFilter(new FileNameExtensionFilter("JSON files (json, txt)", "json", "txt"));
 
 		startButton.addActionListener(new StartListener());
 		mainPanel.add(startButton);
@@ -108,7 +101,8 @@ public class DataInsertionFrame extends JFrame {
 			dispose();
 			var startInformation = StartInformation.buildStartInformation(specificationValidation.get());
 			ResultFrame nextFrame = new ResultFrame(startInformation);
-			nextFrame.show();
+			nextFrame.solveProblem();
+			nextFrame.setVisible(true);
 		}
 	}
 }

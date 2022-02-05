@@ -16,7 +16,7 @@ public class MainClass {
 	 */
 	public static void main(String[] args) {
 	    DataInsertionFrame mainWindow = new DataInsertionFrame();
-	    mainWindow.show();
+	    mainWindow.setVisible(true);
 	}
 
 }

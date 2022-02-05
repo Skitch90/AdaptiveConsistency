@@ -1,24 +1,18 @@
 package it.alesc.adaptiveconsistency.gui;
 
+import com.google.gson.Gson;
+import io.vavr.control.Try;
+import it.alesc.adaptiveconsistency.logic.validation.ProblemSpecificationValidator;
+import it.alesc.adaptiveconsistency.logic.csp.StartInformation;
+import it.alesc.adaptiveconsistency.specification.ProblemSpecification;
+import org.apache.commons.io.FileUtils;
+
+import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
-import java.io.IOException;
 import java.io.Serial;
-import java.text.ParseException;
-
-import javax.swing.JButton;
-import javax.swing.JFileChooser;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
-
-import it.alesc.adaptiveconsistency.logic.InputParser;
-import it.alesc.adaptiveconsistency.logic.exceptions.DuplicateVariableNameException;
-import it.alesc.adaptiveconsistency.logic.exceptions.UnknownVariableException;
-import it.alesc.adaptiveconsistency.logic.exceptions.WrongVariablesNumberException;
+import java.nio.charset.StandardCharsets;
 
 /**
  * It is the window to select the source file and start the computation to solve
@@ -89,56 +83,32 @@ public class DataInsertionFrame extends JFrame {
 
 	private class StartListener implements ActionListener {
 		@Override
-		public void actionPerformed(ActionEvent e) {
-			String filePath = sourceFileText.getText();
+		public void actionPerformed(ActionEvent event) {
+			final Try<ProblemSpecification> tryReadInputFile = Try.of(() -> {
+				final File inputFile = new File(sourceFileText.getText());
+				final String specificationString = FileUtils.readFileToString(inputFile, StandardCharsets.UTF_8);
+				return new Gson().fromJson(specificationString, ProblemSpecification.class);
+			});
 
-			InputParser parser = new InputParser(filePath);
-
-			try {
-				var result = parser.parseFile();
-
-				dispose();
-
-				ResultFrame nextFrame = new ResultFrame(result);
-				nextFrame.show();
-			} catch (ParseException parseExc) {
-				JOptionPane.showMessageDialog(null, parseExc.getMessage(),
-						"Errore di Parsing", JOptionPane.ERROR_MESSAGE);
-			} catch (IOException ioExc) {
+			if (tryReadInputFile.isFailure()) {
 				JOptionPane.showMessageDialog(null,
 						"Si è verificato un errore nell'apertura del file",
 						"Errore", JOptionPane.ERROR_MESSAGE);
-			} catch (DuplicateVariableNameException duplicVarExc) {
-				JOptionPane.showMessageDialog(null,
-						"Il nome " + duplicVarExc.getName()
-								+ "è usato come nome in più di una variable",
-						SOURCE_FILE_ERROR_MESSAGE, JOptionPane.ERROR_MESSAGE);
-			} catch (UnknownVariableException unknownVarExc) {
-				String message = "";
-				switch (unknownVarExc.getCategory()) {
-					case CONSTRAINTS:
-						message = "Nei vincoli ";
-						break;
-					case ORDER_LINE:
-						message = "Nell'ordinamento ";
-						break;
-					default:
-						break;
-				}
-				message += " è presente il nome "
-						+ unknownVarExc.getName()
-						+ " che non corrisponde ad alcuna variabile dichiarata precedentemente";
-
-				JOptionPane.showMessageDialog(null, message,
-						SOURCE_FILE_ERROR_MESSAGE, JOptionPane.ERROR_MESSAGE);
-			} catch (WrongVariablesNumberException wrongVarNumberExc) {
-				JOptionPane
-						.showMessageDialog(
-								null,
-								"Il numero delle variabili nell'ordinamento è diverso dal numero della variabili dichiarate",
-								SOURCE_FILE_ERROR_MESSAGE,
-								JOptionPane.ERROR_MESSAGE);
+				return;
 			}
+
+			var specificationValidation = ProblemSpecificationValidator.validate(tryReadInputFile.get());
+			if (specificationValidation.isInvalid()) {
+				JOptionPane.showMessageDialog(null,
+						specificationValidation.getError().get(0),
+						SOURCE_FILE_ERROR_MESSAGE, JOptionPane.ERROR_MESSAGE);
+				return;
+			}
+
+			dispose();
+			var startInformation = StartInformation.buildStartInformation(specificationValidation.get());
+			ResultFrame nextFrame = new ResultFrame(startInformation);
+			nextFrame.show();
 		}
 	}
 }

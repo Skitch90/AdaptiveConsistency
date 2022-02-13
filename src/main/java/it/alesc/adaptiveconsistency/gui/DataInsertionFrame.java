@@ -5,6 +5,7 @@ import io.vavr.control.Try;
 import it.alesc.adaptiveconsistency.logic.validation.ProblemSpecificationValidator;
 import it.alesc.adaptiveconsistency.logic.csp.StartInformation;
 import it.alesc.adaptiveconsistency.specification.ProblemSpecification;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 
 import javax.swing.*;
@@ -23,6 +24,7 @@ import java.nio.charset.StandardCharsets;
  * @version 1.0 08 Jan 2014
  * 
  */
+@Slf4j
 public class DataInsertionFrame extends JFrame {
 	@Serial
 	private static final long serialVersionUID = 1216585958133368789L;
@@ -84,6 +86,7 @@ public class DataInsertionFrame extends JFrame {
 			});
 
 			if (tryReadInputFile.isFailure()) {
+				log.error("Error while reading file " + sourceFileText.getText(), tryReadInputFile.getCause());
 				JOptionPane.showMessageDialog(null,
 						"Si è verificato un errore nell'apertura del file",
 						"Errore", JOptionPane.ERROR_MESSAGE);
@@ -92,6 +95,7 @@ public class DataInsertionFrame extends JFrame {
 
 			var specificationValidation = ProblemSpecificationValidator.validate(tryReadInputFile.get());
 			if (specificationValidation.isInvalid()) {
+				log.error("Failed validation with messages: {}", specificationValidation.getError());
 				JOptionPane.showMessageDialog(null,
 						specificationValidation.getError().get(0),
 						SOURCE_FILE_ERROR_MESSAGE, JOptionPane.ERROR_MESSAGE);

@@ -19,6 +19,7 @@ import it.alesc.adaptiveconsistency.logic.csp.Constraint;
 import it.alesc.adaptiveconsistency.logic.csp.StartInformation;
 import it.alesc.adaptiveconsistency.logic.csp.Variable;
 import it.alesc.adaptiveconsistency.logic.exceptions.NotSatisfiableException;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * This class implements the adaptive consistency algorithm.
@@ -27,7 +28,9 @@ import it.alesc.adaptiveconsistency.logic.exceptions.NotSatisfiableException;
  * @version 8.0 09 Jan 2014
  * 
  */
+@Slf4j
 public class ProblemSolver {
+	public static final String START_METHOD_LOG_FORMAT = "Start method {}";
 	/**
 	 * the list of variables of the CSP.
 	 */
@@ -76,6 +79,8 @@ public class ProblemSolver {
 	 */
 	public Map<String, String> solve() throws NotSatisfiableException {
 		if (notSatisfiable(new CSP(variables, constraints), null)) {
+			log.info("{} - CSP (variables={} constraints={}) not satisfiable",
+					"solve", variables, constraints);
 			throw new NotSatisfiableException();
 		} else {
 			CSP consistentCSP = adaptiveConsistency();
@@ -94,6 +99,8 @@ public class ProblemSolver {
 	 */
 	private CSP adaptiveConsistency()
 			throws NotSatisfiableException {
+		final String methodName = "adaptiveConsistency";
+		log.info(START_METHOD_LOG_FORMAT, methodName);
 		if (resultFrame != null) {
 			resultFrame.updateTextArea("\n\nConsistenza adattiva:", true);
 		}
@@ -101,19 +108,21 @@ public class ProblemSolver {
 		var consistentCSP = new CSP(variables, constraints);
 
 		for (int i = ordLine.size() - 1; i > -1; i--) {
+			log.debug("{} - Start iteration #{} variable: {}", methodName, ordLine.size() - i, ordLine.get(i));
 			Variable variable = getVariableFromName(ordLine.get(i),	consistentCSP.variables());
 			if (variable != null) {
 				// Computing Parents(Var_i)
 				List<Variable> parents = getParents(variable,
 						consistentCSP.variables(), i);
-
+				log.debug("{} - iteration #{} - parents: {}", methodName, ordLine.size() - i, parents);
 				// Performing consistency (Var_i, Parents(Var_i))
 				Constraint newConstraint = consistency(variable, parents,
 						consistentCSP.constraints());
-
+				log.debug("{} - iteration #{} - consistency constraint: {}",
+						methodName, ordLine.size() - i, newConstraint);
 				// Updating the CSP using result of consistency
 				consistentCSP = updateCSP(consistentCSP, newConstraint);
-				
+				log.debug("{} - iteration #{} - updatedCSP: {}", methodName, ordLine.size() - i, consistentCSP);
 				if (resultFrame != null) {
 					String text = "\n\nIterazione n°" + (ordLine.size() - i)
 							+ "\nVariabile: " + ordLine.get(i)
@@ -125,11 +134,14 @@ public class ProblemSolver {
 				}
 
 				if (notSatisfiable(consistentCSP, newConstraint.getVariables())) {
+					log.info("{} - iteration #{} - CSP ({}) not satisfiable",
+							methodName, ordLine.size() - i,consistentCSP);
 					throw new NotSatisfiableException();
 				}
 			}
 
 		}
+		log.info("End method {} - result: {}", methodName, consistentCSP);
 		return consistentCSP;
 	}
 
@@ -337,11 +349,12 @@ public class ProblemSolver {
 			final CSP consistentCSP,
 			final List<String> order) {
 		Map<String, String> solution = new TreeMap<>();
-
+		final String methodName = "getSolution";
+		log.info(START_METHOD_LOG_FORMAT, methodName);
 		for (String variableName : order) {
 			Variable variable = getVariableFromName(variableName,
 					consistentCSP.variables());
-
+			log.debug("{} - processing variable {}", methodName, variableName);
 			if (variable != null) {
 				List<String> solVarNames = new ArrayList<>(solution.keySet());
 
@@ -350,22 +363,29 @@ public class ProblemSolver {
 
 				List<Constraint> appConstraints = getApplicableConstraints(
 						consistentCSP.constraints(), variableName, solVarNames);
-
+				log.debug("{} - variable {} - applicable constraints: {}",
+						methodName, variableName, appConstraints);
 				boolean found = false;
 				Iterator<String> it = variable.getDomain().iterator();
 				while (it.hasNext() && !found) {
 					String currElem = it.next();
-
+					log.debug("{} - variable {} - processing value: {}",
+							methodName, variableName, currElem);
 					List<String> tuple = new ArrayList<>(solution.values());
 					tuple.add(currElem);
 
 					if (isAcceptable(tuple, allVarNames, appConstraints)) {
+						log.debug("{} - variable {} - value {} is acceptable",
+								methodName, variableName, currElem);
 						found = true;
 						solution.put(variableName, currElem);
 					}
 				}
 			}
+			log.debug("{} - variable {} - updated solution: {}",
+					methodName, variableName, solution);
 		}
+		log.info("End method {} - result: {}", methodName, solution);
 		return solution;
 	}
 

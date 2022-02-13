@@ -559,10 +559,15 @@ public class ProblemSolver {
 	 */
 	private boolean isAcceptable(final List<String> tuple,
 			final List<String> variableNames, final Constraint constraint) {
+		final String methodName = "isAcceptable";
+		log.debug(START_METHOD_LOG_FORMAT, methodName);
+		log.debug("{} - variablesNamesPositions for list {} and {}",
+				methodName, variableNames, constraint.getVariables());
 		int[] varNamePos = variablesNamesPositions(variableNames,
 				constraint.getVariables());
+		log.debug("{} - variablesNamesPositions: {}", methodName, varNamePos);
 		List<String> projTuple = projectTuple(tuple, varNamePos);
-
+		log.debug("{} - project tuple {} -> {}", methodName, tuple, projTuple);
 		for (List<String> constrTuple : constraint.getCompTuples()) {
 			if (projTuple.equals(constrTuple)) {
 				return true;

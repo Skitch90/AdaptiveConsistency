@@ -503,6 +503,7 @@ public class ProblemSolver {
 	 */
 	private List<List<String>> filterTuples(final List<List<String>> allTuples,
 			final List<String> variableNames, final List<Constraint> constraints) {
+		final String methodName = "filterTuples";
 		// If there are no constraints to consider or there are no acceptable
 		// tuples I return the current list of tuples
 		if (constraints.isEmpty() || allTuples.isEmpty()) {
@@ -521,9 +522,13 @@ public class ProblemSolver {
 		// for each tuple in the list returned by the subproblem I test if it is
 		// acceptable according to the first constraint. If it is acceptable I
 		// add it to the result of the problem.
+		log.debug("{} - variablesNamesPositions for list {} and {}",
+				methodName, variableNames, firstConstraint.getVariables());
+		int[] varNamePos = variablesNamesPositions(variableNames, firstConstraint.getVariables());
+		log.debug("{} - variablesNamesPositions: {}", methodName, varNamePos);
 		List<List<String>> filteredTuples = new ArrayList<>();
 		for (List<String> tuple : filteredTail) {
-			if (isAcceptable(tuple, variableNames, firstConstraint)) {
+			if (isAcceptable(tuple, varNamePos, firstConstraint)) {
 				filteredTuples.add(tuple);
 			}
 		}
@@ -533,8 +538,13 @@ public class ProblemSolver {
 
 	private boolean isAcceptable(final List<String> tuple,
 			final List<String> variableNames, final List<Constraint> constraints) {
+		final String methodName = "isAcceptable";
 		for (Constraint constraint : constraints) {
-			if (!isAcceptable(tuple, variableNames, constraint)) {
+			log.debug("{} - variablesNamesPositions for list {} and {}",
+					methodName, variableNames, constraint.getVariables());
+			int[] varNamePos = variablesNamesPositions(variableNames, constraint.getVariables());
+			log.debug("{} - variablesNamesPositions: {}", methodName, varNamePos);
+			if (!isAcceptable(tuple, varNamePos, constraint)) {
 				return false;
 			}
 		}
@@ -558,14 +568,8 @@ public class ProblemSolver {
 	 * otherwise.
 	 */
 	private boolean isAcceptable(final List<String> tuple,
-			final List<String> variableNames, final Constraint constraint) {
+								 int[] varNamePos, final Constraint constraint) {
 		final String methodName = "isAcceptable";
-		log.debug(START_METHOD_LOG_FORMAT, methodName);
-		log.debug("{} - variablesNamesPositions for list {} and {}",
-				methodName, variableNames, constraint.getVariables());
-		int[] varNamePos = variablesNamesPositions(variableNames,
-				constraint.getVariables());
-		log.debug("{} - variablesNamesPositions: {}", methodName, varNamePos);
 		List<String> projTuple = projectTuple(tuple, varNamePos);
 		log.debug("{} - project tuple {} -> {}", methodName, tuple, projTuple);
 		for (List<String> constrTuple : constraint.getCompTuples()) {

@@ -1,25 +1,17 @@
 package it.alesc.adaptiveconsistency.gui;
 
-import java.awt.Font;
+import it.alesc.adaptiveconsistency.logic.ProblemSolver;
+import it.alesc.adaptiveconsistency.logic.csp.CSPResolutionTracker;
+import it.alesc.adaptiveconsistency.logic.csp.StartInformation;
+
+import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Serial;
-import java.util.Map;
-
-import javax.swing.JFileChooser;
-import javax.swing.JFrame;
-import javax.swing.JMenuBar;
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-
-import it.alesc.adaptiveconsistency.logic.ProblemSolver;
-import it.alesc.adaptiveconsistency.logic.csp.StartInformation;
-import it.alesc.adaptiveconsistency.logic.exceptions.NotSatisfiableException;
 
 /**
  * It is the window where the progression of the computation is shown. It allows
@@ -70,39 +62,8 @@ public class ResultFrame extends JFrame {
 	}
 
 	public void solveProblem() {
-		computationArea.setText("Informazioni iniziali:\n\nVariabili: "
-				+ startingInfo.variables() + "\nVincoli: "
-				+ startingInfo.constraints() + "\nOrdinamento: "
-				+ startingInfo.variableOrder());
-
-		try {
-			Map<String, String> solution = new ProblemSolver(startingInfo, this)
-					.solve();
-
-			updateTextArea("\n\nSoluzione: " + solution, true);
-		} catch (NotSatisfiableException e) {
-			updateTextArea("\n\nIl problema non ha soluzioni", true);
-		}
-	}
-
-	/**
-	 * Updates the text displayed in the frame. If the specified guard is
-	 * <code>true</code> the specified text is appended, otherwise the current
-	 * displayed text is replaced with the specified text.
-	 * 
-	 * @param text
-	 *            the text to add or replace
-	 * @param append
-	 *            if <code>true</code> the text is appended, otherwise the text
-	 *            replaces the current
-	 */
-	public void updateTextArea(final String text, final boolean append) {
-		if (append) {
-			String newText = computationArea.getText() + text;
-			computationArea.setText(newText);
-		} else {
-			computationArea.setText(text);
-		}
+		final CSPResolutionTracker cspResolutionTracker = ProblemSolver.solveProblem(startingInfo);
+		computationArea.setText(ComputationTextBuilder.print(cspResolutionTracker));
 	}
 
 	private class SaveListener implements ActionListener {

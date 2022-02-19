@@ -21,4 +21,8 @@ public record StartInformation(Set<Variable> variables, Set<Constraint> constrai
                 .collect(Collectors.toSet());
         return new StartInformation(variables, constraints, specification.getVariableOrder());
     }
+
+    public CSP toCSP() {
+        return new CSP(variables, constraints);
+    }
 }

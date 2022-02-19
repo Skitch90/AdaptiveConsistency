@@ -1,215 +1,103 @@
 package it.alesc.adaptiveconsistency.logic;
 
-import it.alesc.adaptiveconsistency.gui.ResultFrame;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-import java.util.TreeMap;
-
-import it.alesc.adaptiveconsistency.logic.csp.CSP;
-import it.alesc.adaptiveconsistency.logic.csp.Constraint;
-import it.alesc.adaptiveconsistency.logic.csp.StartInformation;
-import it.alesc.adaptiveconsistency.logic.csp.Variable;
-import it.alesc.adaptiveconsistency.logic.exceptions.NotSatisfiableException;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import io.vavr.Tuple;
+import io.vavr.Tuple2;
+import it.alesc.adaptiveconsistency.logic.csp.*;
+import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * This class implements the adaptive consistency algorithm.
- * 
+ *
  * @author Alessandro Schio
  * @version 8.0 09 Jan 2014
- * 
+ *
  */
 @Slf4j
+@UtilityClass
 public class ProblemSolver {
-	public static final String START_METHOD_LOG_FORMAT = "Start method {}";
-	/**
-	 * the list of variables of the CSP.
-	 */
-	private final Set<Variable> variables;
-	/**
-	 * the list of constraints of the CSP.
-	 */
-	private final Set<Constraint> constraints;
-	/**
-	 * the variables order for the adaptive consistency.
-	 */
-	private final List<String> ordLine;
-	/**
-	 * The frame in which the progression of the computation is shown
-	 */
-	private final ResultFrame resultFrame;
+	private static final String START_METHOD_LOG_FORMAT = "Start method {}";
 
-	/**
-	 * The class constructor that creates a new solver with the specified tuple
-	 * that contains the list of variables, the list of constraints, the
-	 * variables order and the frame to show computation progression.
-	 * 
-	 * @param data
-	 *            the tuple containing the list of variables, the list of
-	 *            constraints and the variables order
-	 * @param resultFrame
-	 *            the frame where progression of computation is shown or
-	 *            <code>null</code> if no progression must be shown
-	 */
-	public ProblemSolver(
-			final StartInformation data,
-			final ResultFrame resultFrame) {
-		this.variables = data.variables();
-		this.constraints = data.constraints();
-		this.ordLine = data.variableOrder();
-		this.resultFrame = resultFrame;
-	}
-
-	/**
-	 * Solves the problem and returns a solution to problem.
-	 * 
-	 * @return a map containing the solution of the problem. An empty map is
-	 *         returned if no solution is found
-	 * @throws NotSatisfiableException
-	 *             if the problem has no solutions
-	 */
-	public Map<String, String> solve() throws NotSatisfiableException {
-		if (notSatisfiable(new CSP(variables, constraints), null)) {
+	public static CSPResolutionTracker solveProblem(StartInformation startInformation) {
+		if (startInformation.toCSP().notSatisfiable()) {
 			log.info("{} - CSP (variables={} constraints={}) not satisfiable",
-					"solve", variables, constraints);
-			throw new NotSatisfiableException();
-		} else {
-			CSP consistentCSP = adaptiveConsistency();
-			return getSolution(consistentCSP, ordLine);
+					"solve", startInformation.variables(), startInformation.constraints());
+			return new CSPResolutionTracker(startInformation, false);
 		}
+
+		return Lists.reverse(startInformation.variableOrder()).stream()
+				.reduce(new CSPResolutionTracker(startInformation, true),
+						ProblemSolver::nextIteration,
+						(tuple2, tuple22) -> tuple22)
+				.finish(tracker -> computeSolution(tracker, startInformation.variableOrder()));
 	}
 
-	/*
-	 * Returns variables and constraints obtained by performing the adaptive
-	 * consistency algorithm.
-	 * 
-	 * @return variables and constraints obtained by performing the adaptive
-	 * consistency algorithm
-	 * 
-	 * @throws NotSatisfiableException if the problem has no solutions
-	 */
-	private CSP adaptiveConsistency()
-			throws NotSatisfiableException {
-		final String methodName = "adaptiveConsistency";
-		log.info(START_METHOD_LOG_FORMAT, methodName);
-		if (resultFrame != null) {
-			resultFrame.updateTextArea("\n\nConsistenza adattiva:", true);
+	private static CSPResolutionTracker nextIteration(CSPResolutionTracker cspResolutionTracker,
+													  String variableName) {
+		final String methodName = "nextIteration";
+		final int iterationNumber = cspResolutionTracker.lastStepIndex() + 1;
+		if (!cspResolutionTracker.hasSolution()) {
+			return cspResolutionTracker;
 		}
 
-		var consistentCSP = new CSP(variables, constraints);
-
-		for (int i = ordLine.size() - 1; i > -1; i--) {
-			log.debug("{} - Start iteration #{} variable: {}", methodName, ordLine.size() - i, ordLine.get(i));
-			Variable variable = getVariableFromName(ordLine.get(i),	consistentCSP.variables());
-			if (variable != null) {
-				// Computing Parents(Var_i)
-				List<Variable> parents = getParents(variable,
-						consistentCSP.variables(), i);
-				log.debug("{} - iteration #{} - parents: {}", methodName, ordLine.size() - i, parents);
-				// Performing consistency (Var_i, Parents(Var_i))
-				Constraint newConstraint = consistency(variable, parents,
-						consistentCSP.constraints());
-				log.debug("{} - iteration #{} - consistency constraint: {}",
-						methodName, ordLine.size() - i, newConstraint);
-				// Updating the CSP using result of consistency
-				consistentCSP = updateCSP(consistentCSP, newConstraint);
-				log.debug("{} - iteration #{} - updatedCSP: {}", methodName, ordLine.size() - i, consistentCSP);
-				if (resultFrame != null) {
-					String text = "\n\nIterazione n°" + (ordLine.size() - i)
-							+ "\nVariabile: " + ordLine.get(i)
-							+ "\nCSP aggiornato:\n\tVariabili:"
-							+ consistentCSP.variables() + "\n\tVincoli:"
-							+ consistentCSP.constraints();
-
-					resultFrame.updateTextArea(text, true);
-				}
-
-				if (notSatisfiable(consistentCSP, newConstraint.getVariables())) {
-					log.info("{} - iteration #{} - CSP ({}) not satisfiable",
-							methodName, ordLine.size() - i,consistentCSP);
-					throw new NotSatisfiableException();
-				}
-			}
-
+		log.debug("{} - Start iteration #{} variable: {}", methodName, iterationNumber, variableName);
+		final Set<Variable> variables = cspResolutionTracker.lastStepVariables();
+		final Set<Constraint> constraints = cspResolutionTracker.lastStepConstraints();
+		final Optional<Variable> variable = Utils.getVariableFromName(variableName, variables);
+		if (variable.isEmpty()) {
+			return cspResolutionTracker;
 		}
-		log.info("End method {} - result: {}", methodName, consistentCSP);
-		return consistentCSP;
+
+		final List<Variable> parents = getParents(variable.get(), variables, cspResolutionTracker);
+		log.debug("{} - iteration #{} - parents: {}", methodName, iterationNumber, parents);
+		Constraint newConstraint = consistency(variable.get(), parents, constraints);
+		log.debug("{} - iteration #{} - consistency constraint: {}",
+				methodName, iterationNumber, newConstraint);
+		var consistentCSP = updateCSP(new CSP(variables, constraints), newConstraint);
+		log.debug("{} - iteration #{} - updatedCSP: {}", methodName, iterationNumber, consistentCSP);
+		final boolean notSatisfiable = consistentCSP.notSatisfiable(newConstraint.getVariables());
+		if (notSatisfiable) {
+			log.info("{} - iteration #{} - updatedCSP not satisfiable",	methodName, iterationNumber);
+		}
+		var step = new CSPResolutionStep(iterationNumber, variableName, consistentCSP);
+		return cspResolutionTracker.addStep(step, !notSatisfiable);
 	}
 
-	/*
-	 * Returns parents of the specified variable according to the ordering.
-	 * 
-	 * @param variable the variable
-	 * 
-	 * @param variables the set of variables of the problem
-	 * 
-	 * @param pos the position of the variable in the ordering
-	 * 
-	 * @return parents of the specified variable
-	 */
 	private List<Variable> getParents(final Variable variable,
-			final Set<Variable> variables, final int pos) {
-		ArrayList<Variable> parents = new ArrayList<>();
-		for (int i = 0; i < pos; i++) {
-			String currVariableName = ordLine.get(i);
-
-			List<String> variablesNames = new ArrayList<>();
-			variablesNames.add(variable.getName());
-			variablesNames.add(currVariableName);
-
-			if (existConstraintBetween(variablesNames)) {
-				parents.add(getVariableFromName(currVariableName, variables));
-			}
-		}
-		return parents;
+									  final Set<Variable> variables,
+									  final CSPResolutionTracker cspResolutionTracker) {
+		return cspResolutionTracker.variablesOrder().stream()
+				.takeWhile(variableName -> !StringUtils.equals(variableName, variable.getName()))
+				.filter(v -> existConstraintBetween(List.of(v, variable.getName()), cspResolutionTracker.lastStepConstraints()))
+				.map(name -> Utils.getVariableFromName(name, variables))
+				.filter(Optional::isPresent)
+				.map(Optional::get)
+				.toList();
 	}
 
-	/*
-	 * Performs the consistency on the specified variable and its parents and
-	 * returns the constraint that involves parents with tuples that are
-	 * consistent with the first variable.
-	 * 
-	 * @param variable the current variable in the algorithm
-	 * 
-	 * @param parents the parents of the variable
-	 * 
-	 * @param constraints the set of constraint of the problem
-	 * 
-	 * @return the constraint involving the parents with tuples that are with
-	 * the first variable
-	 */
 	private Constraint consistency(final Variable variable,
 			final List<Variable> parents, final Set<Constraint> constraints) {
-		// Getting applicable constraints
 		List<Constraint> applicableConstr = getApplicableConstraints(
 				constraints, variable.getName(), getNamesFromVariables(parents));
-
-		// Getting all tuples from variables' domains
-		List<Variable> allVar = new ArrayList<>();
-		allVar.add(variable);
-		allVar.addAll(parents);
-
+		List<Variable> allVar = CollectionUtils.listOf(variable, parents);
 		List<List<String>> allTuples = getAllTuples(allVar);
-
-		// filter tuples against applicable constraints
 		List<List<String>> compTuples = filterTuples(allTuples,
 				getNamesFromVariables(allVar), applicableConstr);
-
-		// project compTuples over parents
-		int[] positions = new int[parents.size()];
-		for (int i = 1; i < allVar.size(); i++) {
-			positions[i - 1] = i;
-		}
-		Set<List<String>> projTuples = projectTuples(compTuples, positions);
+		final Map<Integer, Integer> positions = IntStream.range(1, allVar.size()).boxed()
+				.collect(Collectors.toMap(i -> i - 1, Function.identity()));
+		Set<List<String>> projTuples = compTuples.stream()
+				.map(tuple -> projectTuple(tuple, positions))
+				.collect(Collectors.toSet());
 
 		return new Constraint(getNamesFromVariables(parents), projTuples);
 	}
@@ -219,18 +107,12 @@ public class ProblemSolver {
 	 * the specified constraint. The modification can be done in three different
 	 * ways: 1) the constraint involves one variable, so I used the tuples of
 	 * the constraint to modify the domain of that variable. 2) the constraint
-	 * involves more that one variable and the list of variables is a
+	 * involves more than one variable and the list of variables is a
 	 * permutation of a list of an existing one, so I used the tuples of the
 	 * constraint to modify the tuples of the existing one. 3) the constraint
-	 * involves more that one variable and the list is not a permutation of the
+	 * involves more than one variable and the list is not a permutation of the
 	 * list of an existing one, so I add the constraint to the set of
 	 * constraints.
-	 * 
-	 * @param consistentCSP the CSP used to create the new one
-	 * 
-	 * @param constraint the constraint used in the modification
-	 * 
-	 * @return the new CSP updated with new information
 	 */
 	private CSP updateCSP(
 			final CSP consistentCSP,
@@ -248,493 +130,161 @@ public class ProblemSolver {
 		// the constraint involves more than one variable, so I use it to
 		// update the constraint of the CSP with the same variables or, if
 		// it does not exist I add it to CSP's constraints
-		Set<Constraint> newConstraints = new HashSet<>();
-
 		Set<Constraint> cspConstraints = consistentCSP.constraints();
+		var constraintGroups = cspConstraints.stream().collect(Collectors.groupingBy(
+				cspConstraint -> CollectionUtils.isPermutation(constraint.getVariables(), cspConstraint.getVariables())));
 
-		boolean found = false;
-		for (Constraint cspConstraint : cspConstraints) {
-			List<String> cspConstrVars = cspConstraint.getVariables();
-
-			if (isPermutationOf(constraint.getVariables(), cspConstrVars)) {
-				found = true;
-				Constraint permutedConstraint = permuteConstraint(
-						constraint, cspConstrVars);
-
-				if (cspConstrVars.equals(permutedConstraint.getVariables())) {
-
-					Set<List<String>> newTuples = setIntersection(
-							cspConstraint.getCompTuples(),
-							permutedConstraint.getCompTuples());
-
-					newConstraints.add(new Constraint(cspConstraint
-							.getVariables(), newTuples));
-				}
-			} else {
-				newConstraints.add(cspConstraint);
-			}
+		final List<Constraint> permutedConstraints = constraintGroups.getOrDefault(true, List.of());
+		if (permutedConstraints.isEmpty()) {
+			var newConstraints = CollectionUtils.setOf(cspConstraints, constraint);
+			return new CSP(consistentCSP.variables(), newConstraints);
 		}
 
-		if (!found) {
-			newConstraints = new HashSet<>(cspConstraints);
-			newConstraints.add(constraint);
-		}
-
+		final Stream<Constraint> constraintStream = constraintGroups.getOrDefault(false, List.of()).stream();
+		final Stream<Constraint> permutedConstraintsStream = permutedConstraints.stream()
+				.map(cspConstraint -> new Tuple2<>(cspConstraint, permuteConstraint(constraint, cspConstraint.getVariables())))
+				.filter(t -> t._1.getVariables().equals(t._2.getVariables()))
+				.map(t -> new Constraint(t._1.getVariables(), Sets.intersection(t._1.getCompTuples(), t._2.getCompTuples())));
+		var newConstraints =  Stream.concat(permutedConstraintsStream, constraintStream).collect(Collectors.toSet());
 		return new CSP(consistentCSP.variables(), newConstraints);
 	}
 
 	private CSP computeCSPSingleVariable(CSP consistentCSP, Constraint constraint) {
-		// the constraint involves one variable, so I can use it to update
-		// the domain of the variable
-		String varName = constraint.getVariables().get(0);
-
-		// Because every tuple of the constraint contains only one value, I
-		// make a set with the values and I use it in the intersection
-		Set<String> domain = new HashSet<>();
-		for (List<String> list : constraint.getCompTuples()) {
-			domain.add(list.get(0));
-		}
-
-		Set<Variable> newVariables = new HashSet<>();
-
-		for (Variable cspVariable : consistentCSP.variables()) {
-			if (cspVariable.getName().equals(varName)) {
-				Set<String> newDomain = setIntersection(domain,
-						cspVariable.getDomain());
-
-				newVariables.add(new Variable(varName, newDomain));
-			} else {
-				newVariables.add(cspVariable);
+		String variableName = constraint.getVariables().get(0);
+		var domain = constraint.getCompTuples().stream().map(list -> list.get(0)).collect(Collectors.toSet());
+		final Set<Variable> newVariables = consistentCSP.variables().stream().map(variable -> {
+			if (!variable.getName().equals(variableName)) {
+				return variable;
 			}
-
-		}
-
+			return new Variable(variableName, Sets.intersection(domain, variable.getDomain()));
+		}).collect(Collectors.toSet());
 		return new CSP(newVariables, consistentCSP.constraints());
 	}
 
-	/*
-	 * Checks if the specified CSP is satisfiable. The specified list of
-	 * variables' names is used to check the satisfiability of the problem
-	 * testing only the constraint with these variables (it is useful during the
-	 * adaptive consistency algorithm because only one constraint or variable's
-	 * domain changes in each iteration). If the list is <code>null</code> every
-	 * variable and constraint is checked.
-	 * 
-	 * @param csp the CSP to check
-	 * 
-	 * @param constrVariables the list of variables' names to check, or
-	 * <code>null</code> for a complete check
-	 * 
-	 * @return <code>true</code> if the problem is satisfiable,
-	 * <code>false</code> otherwise
-	 */
-	private boolean notSatisfiable(
-			final CSP csp,
-			final List<String> constrVariables) {
-		if (constrVariables == null) {
-			return !completeSatisfiabilityCheck(csp);
-		} else {
-			return !quickSatisfiabilityCheck(csp, constrVariables);
-		}
-	}
-
-	/*
-	 * Returns a solution of the CSP.
-	 * 
-	 * @param consistentCSP the CSP
-	 * 
-	 * @return a solution of the CSP
-	 */
-	private Map<String, String> getSolution(
-			final CSP consistentCSP,
-			final List<String> order) {
-		Map<String, String> solution = new TreeMap<>();
+	private static CSPResolutionTracker computeSolution(CSPResolutionTracker tracker, List<String> variableOrder) {
 		final String methodName = "getSolution";
 		log.info(START_METHOD_LOG_FORMAT, methodName);
-		for (String variableName : order) {
-			Variable variable = getVariableFromName(variableName,
-					consistentCSP.variables());
-			log.debug("{} - processing variable {}", methodName, variableName);
-			if (variable != null) {
-				List<String> solVarNames = new ArrayList<>(solution.keySet());
-
-				List<String> allVarNames = new ArrayList<>(solVarNames);
-				allVarNames.add(variableName);
-
-				List<Constraint> appConstraints = getApplicableConstraints(
-						consistentCSP.constraints(), variableName, solVarNames);
-				log.debug("{} - variable {} - applicable constraints: {}",
-						methodName, variableName, appConstraints);
-				boolean found = false;
-				Iterator<String> it = variable.getDomain().iterator();
-				while (it.hasNext() && !found) {
-					String currElem = it.next();
-					log.debug("{} - variable {} - processing value: {}",
-							methodName, variableName, currElem);
-					List<String> tuple = new ArrayList<>(solution.values());
-					tuple.add(currElem);
-
-					if (isAcceptable(tuple, allVarNames, appConstraints)) {
-						log.debug("{} - variable {} - value {} is acceptable",
-								methodName, variableName, currElem);
-						found = true;
-						solution.put(variableName, currElem);
-					}
-				}
-			}
-			log.debug("{} - variable {} - updated solution: {}",
-					methodName, variableName, solution);
+		if (!tracker.hasSolution()) {
+			log.info("{} - the problem has no solution", methodName);
+			return tracker;
 		}
+
+		final Set<Variable> variables = tracker.lastStepVariables();
+		final Map<String, String> solution = variableOrder.stream()
+				.peek(variableName -> log.debug("{} - processing variable {}", methodName, variableName))
+				.map((String name) -> Utils.getVariableFromName(name, variables))
+				.filter(Optional::isPresent).map(Optional::get)
+				.reduce(Maps.newTreeMap(),
+						(solution1, variable) -> getSolutionForVariable(solution1, variable, tracker.lastStepConstraints()),
+						(v1, v2) -> v2);
 		log.info("End method {} - result: {}", methodName, solution);
-		return solution;
+		return tracker.addSolution(solution);
 	}
 
-	/*
-	 * Checks if the specified variables are involved simultaneously in some
-	 * constraints.
-	 * 
-	 * @param names the name of the variables to check
-	 * 
-	 * @return <code>true</code> if there exist one constraint that involves
-	 * simultaneously the variables, <code>false</code> otherwise
-	 */
-	private boolean existConstraintBetween(final List<String> names) {
-		for (Constraint constraint : constraints) {
-			// if the specified variables' names are a subset of the variables'
-			// names involved in the constraint then there exist a constraint
-			// between the specified variables' names
-			if (constraint.getVariables().containsAll(names)) {
-				return true;
-			}
-		}
-		return false;
+	private TreeMap<String, String> getSolutionForVariable(TreeMap<String, String> solution,
+														   Variable variable,
+														   Set<Constraint> constraints) {
+		final String methodName = "getSolutionForVariable";
+		final List<String> solutionVariables = Lists.newArrayList(solution.keySet());
+		final List<String> allVariables = CollectionUtils.listOf(solutionVariables, variable.getName());
+		List<Constraint> appConstraints = getApplicableConstraints(	constraints, variable.getName(), solutionVariables);
+		log.debug("{} - variable {} - applicable constraints: {}",
+				methodName, variable.getName(), appConstraints);
+		final Optional<String> solutionValue = variable.getDomain().stream()
+				.peek(value -> log.debug("{} - variable {} - processing value: {}",
+						methodName, variable.getName(), value))
+				.filter(value -> isAcceptable(CollectionUtils.listOf(solution.values(), value),
+						allVariables, appConstraints))
+				.findFirst();
+		var updatedSolution = Maps.newTreeMap(solution);
+		solutionValue.ifPresent(value -> {
+			log.debug("{} - variable {} - value {} is acceptable", methodName, variable.getName(), value);
+			updatedSolution.put(variable.getName(), value);
+		});
+		log.debug("{} - variable {} - updated solution: {}", methodName, variable.getName(), solution);
+		return updatedSolution;
 	}
 
-	/*
-	 * Returns the applicable constraints according to the specified variable
-	 * and parents. A constraint is applicable if it involves the specified
-	 * variable and a subset (also empty) of parents.
-	 * 
-	 * @param constraints the set of constraints of the problem
-	 * 
-	 * @param variable the current variable of the algorithm
-	 * 
-	 * @param parents the parents of the current variable
-	 * 
-	 * @return the applicable constraints
-	 */
+
+	private boolean existConstraintBetween(final List<String> names, Set<Constraint> constraints) {
+		return constraints.stream().anyMatch(constraint -> constraint.getVariables().containsAll(names));
+	}
+
 	private List<Constraint> getApplicableConstraints(
 			final Set<Constraint> constraints, final String variableName,
 			final List<String> parentsNames) {
-		List<Constraint> appConstraints = new ArrayList<>();
-
-		List<String> namesList = new ArrayList<>();
-		namesList.add(variableName);
-		namesList.addAll(parentsNames);
-
-		for (Constraint constraint : constraints) {
-			List<String> constVarNamesList = constraint.getVariables();
-
-			if (constVarNamesList.contains(variableName)
-					&& namesList.containsAll(constVarNamesList)) {
-				appConstraints.add(constraint);
-			}
-		}
-		return appConstraints;
+		final List<String> namesList = CollectionUtils.listOf(variableName, parentsNames);
+		return constraints.stream()
+				.filter(constraint -> constraint.getVariables().contains(variableName)
+					&& namesList.containsAll(constraint.getVariables()))
+				.toList();
 	}
 
-	/*
-	 * Returns all the tuples created using domain's value of the specified
-	 * values, where each position of the tuple is filled with a value in the
-	 * domain of the corresponding list of variables.
-	 * 
-	 * @param variables the list of variables
-	 * 
-	 * @return the vector of tuples created using domain's values
-	 */
 	private List<List<String>> getAllTuples(final List<Variable> variables) {
 		if (variables.isEmpty()) {
-			// If there are no variables I return a vector with the empty tuple
-			List<String> emptyTuple = Collections.emptyList();
-
-			return Collections.singletonList(emptyTuple);
+			return List.of(List.of());
 		}
 
-		// I extract the domain of the first variable and the list of variables
-		// without the first one from the specified variables.
 		Set<String> firstVarDomain = variables.get(0).getDomain();
 		List<Variable> varTail = variables.subList(1, variables.size());
 
-		// I obtain tuples for the new list
 		List<List<String>> subProbTuples = getAllTuples(varTail);
 		log.debug("all tuples for {}: {}", varTail, subProbTuples);
-		// For each tuple in the result of the subproblem I create n tuples,
-		// where n is the number of elements in the domain of the first
-		// variable, such that the first element of the tuple is one of the
-		// elements of the first variable's domain and the rest of the tuple is
-		// the current tuple of the subproblem.
-		List<List<String>> probTuples = new ArrayList<>();
-		for (String value : firstVarDomain) {
-			for (List<String> tuple : subProbTuples) {
-
-				List<String> newTuple = new ArrayList<>();
-				newTuple.add(value);
-				newTuple.addAll(tuple);
-
-				probTuples.add(newTuple);
-			}
-		}
-
-		return probTuples;
+		return CollectionUtils.cartesianProduct(List.copyOf(firstVarDomain), subProbTuples).stream()
+				.map(t -> CollectionUtils.listOf(t._1, t._2)).toList();
 	}
 
-	/*
-	 * Returns a set of tuples containing tuples of the specified set that are
-	 * acceptable according to all the specified constraints.
-	 * 
-	 * @param tuples the set of tuples to filter
-	 * 
-	 * @param variableNames the list of the names of variables involved in the
-	 * tuples
-	 * 
-	 * @param constraints the set of constraints
-	 * 
-	 * @return the set of acceptable tuples
-	 */
 	private List<List<String>> filterTuples(final List<List<String>> allTuples,
 			final List<String> variableNames, final List<Constraint> constraints) {
 		final String methodName = "filterTuples";
-		// If there are no constraints to consider or there are no acceptable
-		// tuples I return the current list of tuples
 		if (constraints.isEmpty() || allTuples.isEmpty()) {
 			return allTuples;
 		}
 
 		Constraint firstConstraint = constraints.get(0);
-		List<Constraint> constraintsTail = constraints.subList(1,
-				constraints.size());
-
-		// I obtain the list of tuples that are acceptable according to the
-		// constraints except the first
-		List<List<String>> filteredTail = filterTuples(allTuples,
-				variableNames, constraintsTail);
-
-		// for each tuple in the list returned by the subproblem I test if it is
-		// acceptable according to the first constraint. If it is acceptable I
-		// add it to the result of the problem.
+		List<Constraint> constraintsTail = constraints.subList(1, constraints.size());
+		List<List<String>> filteredTail = filterTuples(allTuples, variableNames, constraintsTail);
 		log.debug("{} - variablesNamesPositions for list {} and {}",
 				methodName, variableNames, firstConstraint.getVariables());
-		int[] varNamePos = variablesNamesPositions(variableNames, firstConstraint.getVariables());
+		Map<Integer, Integer> varNamePos = variablesNamesPositions(variableNames, firstConstraint.getVariables());
 		log.debug("{} - variablesNamesPositions: {}", methodName, varNamePos);
-		List<List<String>> filteredTuples = new ArrayList<>();
-		for (List<String> tuple : filteredTail) {
-			if (isAcceptable(tuple, varNamePos, firstConstraint)) {
-				filteredTuples.add(tuple);
-			}
-		}
-
-		return filteredTuples;
+		return filteredTail.stream().filter(tuple -> isAcceptable(tuple, varNamePos, firstConstraint)).toList();
 	}
 
 	private boolean isAcceptable(final List<String> tuple,
-			final List<String> variableNames, final List<Constraint> constraints) {
-		final String methodName = "isAcceptable";
-		for (Constraint constraint : constraints) {
-			log.debug("{} - variablesNamesPositions for list {} and {}",
-					methodName, variableNames, constraint.getVariables());
-			int[] varNamePos = variablesNamesPositions(variableNames, constraint.getVariables());
-			log.debug("{} - variablesNamesPositions: {}", methodName, varNamePos);
-			if (!isAcceptable(tuple, varNamePos, constraint)) {
-				return false;
-			}
-		}
-
-		return true;
+								 final List<String> variableNames, final List<Constraint> constraints) {
+		return constraints.stream()
+				.map(constraint -> Tuple.of(constraint, constraintVariablesPosition(variableNames, constraint)))
+				.allMatch(t -> isAcceptable(tuple, t._2, t._1));
 	}
 
-	/*
-	 * Checks if the specified tuple is acceptable according to the specified
-	 * constraint, i.e. if the projection of the tuple over constraint variables
-	 * is one of the tuple permitted by the constraint.
-	 * 
-	 * @param tuple the tuple to check
-	 * 
-	 * @param variableNames the list of the names of variables involved in the
-	 * tuples
-	 * 
-	 * @param constraint the constraint used
-	 * 
-	 * @return <code>true</code> if the tuple is acceptable, <code>false</code>
-	 * otherwise.
-	 */
+	private Map<Integer, Integer> constraintVariablesPosition(List<String> variableNames, Constraint constraint) {
+		log.debug("{} - variablesNamesPositions for list {} and {}",
+				"constraintVariablesPosition", variableNames, constraint.getVariables());
+		Map<Integer, Integer> varNamePos = variablesNamesPositions(variableNames, constraint.getVariables());
+		log.debug("{} - variablesNamesPositions: {}", "constraintVariablesPosition", varNamePos);
+		return varNamePos;
+	}
+
 	private boolean isAcceptable(final List<String> tuple,
-								 int[] varNamePos, final Constraint constraint) {
+								 Map<Integer, Integer> varNamePos, final Constraint constraint) {
 		final String methodName = "isAcceptable";
 		List<String> projTuple = projectTuple(tuple, varNamePos);
 		log.debug("{} - project tuple {} -> {}", methodName, tuple, projTuple);
-		for (List<String> constrTuple : constraint.getCompTuples()) {
-			if (projTuple.equals(constrTuple)) {
-				return true;
-			}
-		}
-
-		return false;
+		return constraint.getCompTuples().stream().anyMatch(projTuple::equals);
 	}
 
-	/*
-	 * Returns a list of the positions of the elements of the second list in the
-	 * first one.
-	 * 
-	 * @param varNames the first list
-	 * 
-	 * @param constNames the second list
-	 * 
-	 * @return a list of the positions of the elements of the second list in the
-	 * first one
-	 */
-	private int[] variablesNamesPositions(final List<String> variableNames,
-			final List<String> constraintNames) {
-		int[] positions = new int[constraintNames.size()];
-		for (int j = 0; j < constraintNames.size(); j++) {
-			for (int i = 0; i < variableNames.size(); i++) {
-				if (variableNames.get(i).equals(constraintNames.get(j))) {
-					positions[j] = i;
-				}
-			}
-		}
-
-		return positions;
+	private Map<Integer, Integer> variablesNamesPositions(final List<String> variableNames,
+														  final List<String> constraintNames) {
+		return IntStream.range(0, constraintNames.size()).boxed()
+				.collect(Collectors.toMap(Function.identity(), j -> variableNames.indexOf(constraintNames.get(j))));
 	}
 
-	/*
-	 * Projects every tuple in the specified set over the specified positions
-	 * and returns a vector with the projected tuples.
-	 * 
-	 * @param tuples the vector of tuple to project
-	 * 
-	 * @param positions the positions used in the projection
-	 * 
-	 * @return the vector of projected tuples
-	 */
-	private Set<List<String>> projectTuples(
-			final List<List<String>> compTuples, final int[] positions) {
-		HashSet<List<String>> projectedTuples = new HashSet<>();
-		for (List<String> tuple : compTuples) {
-			List<String> projTuple = projectTuple(tuple, positions);
-
-			projectedTuples.add(projTuple);
-		}
-
-		return projectedTuples;
+	private static List<String> projectTuple(List<String> tuple, Map<Integer, Integer> positions) {
+		return positions.entrySet().stream().sorted(Map.Entry.comparingByKey())
+				.map(entry -> tuple.get(entry.getValue())).toList();
 	}
 
-	/*
-	 * Projects the specified tuple over the specified positions and returns the
-	 * projected tuple.
-	 * 
-	 * @param tuple the tuple to project
-	 * 
-	 * @param positions the positions used in the projection
-	 * 
-	 * @return the projected tuple
-	 */
-	private List<String> projectTuple(final List<String> tuple,
-			final int[] positions) {
-		List<String> projTuple = new ArrayList<>();
-
-		for (int position : positions) {
-			projTuple.add(tuple.get(position));
-		}
-		return projTuple;
-	}
-
-	/*
-	 * Checks the satisfiability of the specified CSP i.e. there is no variables
-	 * with empty domain or constraint with no tuples.
-	 * 
-	 * @param csp the CSP to check
-	 * 
-	 * @return <code>true</code> if the CSP is satisfiable, <code>false</code>
-	 * otherwise
-	 */
-	private boolean completeSatisfiabilityCheck(
-			final CSP csp) {
-		// checking variables
-		for (Variable variable : csp.variables()) {
-			if (variable.getDomain().isEmpty()) {
-				return false;
-			}
-		}
-
-		// checking constraints
-		for (Constraint constraint : csp.constraints()) {
-			if (constraint.getCompTuples().isEmpty()) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	/*
-	 * Checks the satisfiability of the specified CSP using the specified list
-	 * of variables' names. If the list contains only one name, the variables
-	 * with that name is checked, otherwise the constraint involving the
-	 * variables in the list. Returns true if the variable's domain is not empty
-	 * or the constraint has at least one tuple.
-	 * 
-	 * @param csp the CSP to check
-	 * 
-	 * @param varNames the list of variables' names used
-	 * 
-	 * @return <code>true</code> if the CSP is satisfiable, <code>false</code>
-	 * otherwise
-	 */
-	private boolean quickSatisfiabilityCheck(
-			final CSP csp,
-			final List<String> varNames) {
-		if (varNames.size() == 1) {
-			Variable variable = getVariableFromName(varNames.get(0),
-					csp.variables());
-
-			return variable == null || !variable.getDomain().isEmpty();
-		} else {
-			Constraint constraint = searchConstraintwithVariables(varNames,
-					csp.constraints());
-
-			return constraint == null || !constraint.getCompTuples().isEmpty();
-		}
-	}
-
-	/*
-	 * Returns if the specified second list is a permutation of the specified
-	 * first list
-	 * 
-	 * @param firstList the first list
-	 * 
-	 * @param secondList the second list
-	 * 
-	 * @return <code>true</code> if the first list is a permutation of the
-	 * second, <code>false</code> otherwise
-	 */
-	private <T> boolean isPermutationOf(List<T> firstList, List<T> secondList) {
-		if (firstList.size() != secondList.size()) {
-			return false;
-		}
-
-		return firstList.containsAll(secondList);
-	}
-
-	/*
-	 * Returns the constraint obtained by a permutation of the specified
-	 * constraint according to the specified list a variables names.
-	 * 
-	 * @param constraint the constraint to permute
-	 * 
-	 * @param variablesNames the list of variables names
-	 * 
-	 * @return the constraint after the permutation
-	 */
 	private Constraint permuteConstraint(final Constraint constraint,
 			final List<String> variablesNames) {
 		if (variablesNames.equals(constraint.getVariables())) {
@@ -743,132 +293,25 @@ public class ProblemSolver {
 
 		Map<Integer, Integer> permutationMap = computePermutationMap(
 				constraint.getVariables(), variablesNames);
-
-		Set<List<String>> permTuples = new HashSet<>();
-		for (List<String> tuple : constraint.getCompTuples()) {
-			String[] permTuple = new String[tuple.size()];
-
-			for (Entry<Integer, Integer> mapEntry : permutationMap.entrySet()) {
-				permTuple[mapEntry.getValue()] = tuple.get(mapEntry.getKey());
-			}
-			permTuples.add(Arrays.asList(permTuple));
-		}
+		Set<List<String>> permTuples = constraint.getCompTuples().stream()
+				.map(tuple -> permuteTuple(tuple, permutationMap)).collect(Collectors.toSet());
 
 		return new Constraint(variablesNames, permTuples);
 	}
 
-	/*
-	 * Computes the permutation map between the specified lists. For each object
-	 * in the first list, it maps the position of the object in the first list
-	 * in the position of the same object in the second list.
-	 * 
-	 * @param sourceList the first list
-	 * 
-	 * @param objectList the second list
-	 * 
-	 * @return the permutation map
-	 */
+	private List<String> permuteTuple(List<String> tuple, Map<Integer, Integer> permutationMap) {
+		return permutationMap.entrySet().stream().sorted(Map.Entry.comparingByValue())
+				.map(entry -> tuple.get(entry.getKey())).toList();
+	}
+
 	private <T> Map<Integer, Integer> computePermutationMap(
 			final List<T> sourceList, final List<T> objectList) {
-		Map<Integer, Integer> map = new HashMap<>();
-
-		for (int i = 0; i < sourceList.size(); i++) {
-			int index = objectList.indexOf(sourceList.get(i));
-			if (index != -1) {
-				map.put(i, index);
-			}
-		}
-
-		return map;
+		 return IntStream.range(0, sourceList.size())
+				.filter(i -> objectList.contains(sourceList.get(i))).boxed()
+				.collect(Collectors.toMap(Function.identity(), i -> objectList.indexOf(sourceList.get(i))));
 	}
 
-	/*
-	 * Returns the intersection between the specified sets.
-	 * 
-	 * @param firstSet the first operand of the intersection
-	 * 
-	 * @param secondSet the second operand of the intersection
-	 * 
-	 * @return the intersection between the specified sets
-	 */
-	private <T> Set<T> setIntersection(Set<T> firstSet, Set<T> secondSet) {
-		Set<T> intersection = new HashSet<>();
-
-		Set<T> newFirst;
-		Set<T> newSecond;
-		if (firstSet.size() <= secondSet.size()) {
-			newFirst = firstSet;
-			newSecond = secondSet;
-		} else {
-			newFirst = secondSet;
-			newSecond = firstSet;
-		}
-
-		for (T element : newFirst) {
-			if (newSecond.contains(element)) {
-				intersection.add(element);
-			}
-		}
-
-		return intersection;
-	}
-
-	/*
-	 * Returns the variable in the specified variables set with the specified
-	 * name
-	 * 
-	 * @param name the name of the variable to find
-	 * 
-	 * @param variables the set of variables in which search
-	 * 
-	 * @return the variable with the specified name
-	 */
-	private Variable getVariableFromName(final String name,
-			final Set<Variable> variables) {
-		for (Variable variable : variables) {
-			if (name.equals(variable.getName())) {
-				return variable;
-			}
-		}
-		return null;
-	}
-
-	/*
-	 * Returns a list of names of the specified variables
-	 * 
-	 * @param variables the list of variables
-	 * 
-	 * @return the names of the variables
-	 */
 	private List<String> getNamesFromVariables(final List<Variable> variables) {
-		ArrayList<String> names = new ArrayList<>();
-		for (Variable variable : variables) {
-			names.add(variable.getName());
-		}
-		return names;
-	}
-
-	/*
-	 * Returns the constraint in the specified set with the specified variables.
-	 * This method returns also a constraint which list of variables is a
-	 * permutation of the specified list.
-	 * 
-	 * @param variables the variables of the constraint to look for
-	 * 
-	 * @param constraints the set of constraint in which search
-	 * 
-	 * @return the constraint with the specified variables, or <code>null</code>
-	 * if this constraint does not exist in the set
-	 */
-	private Constraint searchConstraintwithVariables(List<String> variables,
-			Set<Constraint> cspConstraints) {
-		for (Constraint constraint : cspConstraints) {
-			if (variables.equals(constraint.getVariables())
-					|| isPermutationOf(variables, constraint.getVariables())) {
-				return constraint;
-			}
-		}
-
-		return null;
+		return variables.stream().map(Variable::getName).toList();
 	}
 }

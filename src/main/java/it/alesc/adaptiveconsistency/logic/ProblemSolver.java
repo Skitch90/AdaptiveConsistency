@@ -467,7 +467,7 @@ public class ProblemSolver {
 
 		// I obtain tuples for the new list
 		List<List<String>> subProbTuples = getAllTuples(varTail);
-
+		log.debug("all tuples for {}: {}", varTail, subProbTuples);
 		// For each tuple in the result of the subproblem I create n tuples,
 		// where n is the number of elements in the domain of the first
 		// variable, such that the first element of the tuple is one of the
